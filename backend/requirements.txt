@@ -1,0 +1,15 @@
+# Pinned to the versions verified working in the local venv.
+# pydantic-core is the Rust-built dependency of pydantic; pinning it ensures the
+# prebuilt wheel is used and avoids a from-source Rust build.
+streamlit==1.58.0
+pydantic==2.10.6
+pydantic-core==2.27.2
+pydantic-settings==2.14.2
+anthropic==0.111.0
+chromadb==1.5.9
+# numpy is a transitive dep of chromadb. 2.4.6 shipped a broken/blocked C-extension
+# DLL on this machine; 2.3.1 loads correctly — pin it so reinstalls stay healthy.
+numpy==2.3.1
+networkx==3.6.1
+pygithub==2.9.1
+gitpython==3.1.50
