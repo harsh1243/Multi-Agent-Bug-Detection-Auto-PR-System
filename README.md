@@ -54,9 +54,9 @@ This system answers all four by reasoning **across files** on a knowledge graph,
 | Capability | What it does |
 |---|---|
 | 🔍 **LLM Bug Hunter** | Two-stage discovery — cheap **Haiku** triages every source file, strong **Sonnet** confirms real defects with cited evidence and a concrete fix. Finds genuine bugs, not just "function is long". |
-| 🕸️ **Knowledge graph** | A `networkx` directed graph of files, functions, classes, API endpoints, DB models, imports & calls — the backbone for cross-file reasoning and blast-radius analysis. |
-| 🧭 **Cross-file root cause** | 2-hop BFS + data-flow tracing finds where a bug *originates*, not just where the symptom surfaces. |
-| 🩹 **Surgical patches** | Anchored `SEARCH/REPLACE` edits change only what they must — **no whole-file rewrites** — and emit a real unified diff. |
+| 🕸️ **Knowledge graph** | A `networkx` directed graph of files, functions, classes, API endpoints, DB models & calls — with **imports resolved to real file→file edges** — the backbone for cross-file reasoning and blast-radius analysis. |
+| 🧭 **Cross-file root cause & fixes** | Import-resolved dependency graph + data-flow tracing find where a bug *originates* — and a patch can edit the **root-cause file**, not just where the symptom surfaces. |
+| 🩹 **Surgical, multi-file patches** | Anchored `SEARCH/REPLACE` edits change only what they must — **no whole-file rewrites** — and a single fix can span several files (symptom + root cause) in one PR, with a real unified diff. |
 | ✅ **Validated fixes** | Four gates: AST syntax → pytest + bandit → regression (blast-radius) → differential security. Nothing ships that fails. |
 | 📦 **One PR per file** | All of a file's issues are fixed and shipped together — no flood of near-duplicate PRs. |
 | 🎚️ **Confidence scoring** | A 5-signal composite (0–100%) drives auto-merge eligibility vs. mandatory human review. |
@@ -115,7 +115,7 @@ flowchart TD
 | 3 | **Bug Hunter** | 1 · Discovery | Two-stage LLM detection (Haiku triage → Sonnet confirm) + Bandit/ESLint; all four issue classes. |
 | 4 | **Bug Investigation** | 2 · Investigation | Root cause, severity, blast radius, affected modules; query memory for similar past fixes. |
 | 5 | **Repair Planner** | 3 · Planning | Group fixable findings by file; order by dependency (security first) via topological sort. |
-| 6 | **Code Generation** | 4 · Fix loop | Produce minimal anchored `SEARCH/REPLACE` edits + a real unified diff. |
+| 6 | **Code Generation** | 4 · Fix loop | Produce minimal anchored `SEARCH/REPLACE` edits — **across multiple files** when the root cause lives elsewhere — + a real unified diff. |
 | 7 | **Validation Agent** | 4 · Fix loop | AST check → pytest + bandit → regression tests on blast-radius modules. |
 | 8 | **Security Verification** | 4 · Fix loop | Differential pre/post scan — original vuln gone, no new ones introduced. |
 | 9 | **PR Author** | 5 · Publication | Compute confidence, apply approval gate, open one GitHub PR per file. |
@@ -139,6 +139,8 @@ flowchart LR
     Function -->|USES_CONFIG| ConfigVar
     Class -->|BELONGS_TO| ServiceBoundary
 ```
+
+Imports are **resolved to the actual repository files they reference**, so file→file edges represent true dependencies (not just directory proximity). This is what makes blast radius and cross-file reasoning meaningful.
 
 **Blast radius** = the set of nodes reachable within *k* hops (default 2) from a modified file. It drives which tests to run, whether a change is "critical path", and how the interactive bubble map highlights impact.
 
@@ -299,7 +301,7 @@ The Streamlit app loads `.env` into the environment at startup, so no keys need 
 3. **Gate:** findings split into **fixable** (security / functional / performance) and **report-only** (code-quality nits — shown in the UI, never PR'd).
 4. **Investigation:** each fixable finding gets a root cause, blast radius, affected modules, and a memory lookup.
 5. **Planning:** findings are grouped by file and topologically ordered (security first).
-6. **Fix–Validate loop:** Code Gen produces minimal anchored edits → Validation (AST + pytest + bandit + regression) → Security Verification (differential scan). On failure, the errors are fed back and it retries (≤3).
+6. **Fix–Validate loop:** Code Gen produces minimal anchored edits — touching the symptom file and, when the root cause is elsewhere, the related file(s) — → Validation (AST + pytest + bandit + regression on every changed file) → Security Verification (differential scan across all changed files). On failure, the errors are fed back and it retries (≤3).
 7. **Publication:** for each validated file, PR Author computes the confidence score, applies the critical-path/approval gate, and opens **one pull request per file** with a structured description, confidence badge, blast-radius summary, and the unified diff.
 
 Throughout, the **Orchestrator** streams every agent event live to the Streamlit feed and handles partial failures without aborting the run.
