@@ -193,15 +193,19 @@ class OrchestratorAgent:
         patch: PatchResult | None = None
         validation = ValidationResult()
 
+        # Immediate graph neighbours are candidate locations for a cross-file
+        # root-cause fix — offer them to the code generator as editable context.
+        related = self._related_files(file_path, kg)
+
         for attempt in range(settings.validation_max_retries):
             if attempt == 0:
                 patch = await self.code_gen.generate_file_patch(
-                    file_path, group, repo_path, fix_strategy, event_callback,
+                    file_path, group, repo_path, fix_strategy, related, event_callback,
                 )
             else:
                 error_out = "\n".join(validation.test_failures) if validation else ""
                 patch = await self.code_gen.regenerate_with_error(
-                    file_path, group, repo_path, patch, error_out, event_callback,
+                    file_path, group, repo_path, patch, error_out, related, event_callback,
                 )
 
             if patch is None or not patch.ok:
@@ -220,6 +224,22 @@ class OrchestratorAgent:
         return patch, validation, False
 
     # ── Helpers ───────────────────────────────────────────────────────
+    def _related_files(self, file_path: str, kg, limit: int = 3) -> list[str]:
+        """Editable source files adjacent to ``file_path`` in the knowledge graph
+        (its dependencies/dependents) — candidate sites for a cross-file fix."""
+        try:
+            neighbours = kg.get_neighbours(file_path, hop=1)
+        except Exception:
+            return []
+        out: list[str] = []
+        for n in neighbours:
+            if n == file_path:
+                continue
+            attrs = kg.graph.nodes.get(n, {})
+            if attrs.get("type") == "File" and str(n).endswith(".py"):
+                out.append(n)
+        return out[:limit]
+
     def _is_fixable(self, f: Finding) -> bool:
         """Decide whether a finding should produce a PR (vs report-only)."""
         cls = f.issue_class.value

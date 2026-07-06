@@ -61,6 +61,40 @@ def parse_edits(text: str) -> list[Edit]:
     return edits
 
 
+# A per-edit file header, e.g. "### FILE: path/to/x.py" (tolerant of list/quote
+# prefixes). Only lines that actually look like a path are treated as markers.
+_FILE_MARK_RE = re.compile(r"^[ \t>#*`\-]*FILE:\s*(.+?)\s*$", re.MULTILINE)
+
+
+def _looks_like_path(p: str) -> bool:
+    return bool(p) and ("/" in p or "\\" in p or re.search(r"\.\w{1,6}$", p) is not None)
+
+
+def parse_file_edits(text: str, default_path: str) -> dict[str, list["Edit"]]:
+    """Parse SEARCH/REPLACE blocks and group them by the file each targets.
+
+    Each block is attributed to the nearest preceding ``### FILE:`` marker; blocks
+    with no marker before them fall back to ``default_path``. This lets a single
+    model response edit several files at once (cross-file root-cause fixes).
+    """
+    text = text or ""
+    markers = [
+        (m.start(), m.group(1).strip())
+        for m in _FILE_MARK_RE.finditer(text)
+        if _looks_like_path(m.group(1).strip())
+    ]
+    grouped: dict[str, list[Edit]] = {}
+    for bm in _BLOCK_RE.finditer(text):
+        path = default_path
+        for pos, mpath in markers:
+            if pos < bm.start():
+                path = mpath
+            else:
+                break
+        grouped.setdefault(path, []).append(Edit(search=bm.group(1), replace=bm.group(2)))
+    return grouped
+
+
 def _normalize_eol(s: str) -> str:
     return s.replace("\r\n", "\n").replace("\r", "\n")
 

@@ -18,6 +18,7 @@ import queue
 import sys
 import tempfile
 import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -156,6 +157,50 @@ def _inject_css() -> None:
           section[data-testid="stSidebar"] {background:#0d1220;border-right:1px solid #1e2740;}
           .stButton>button {border-radius:10px;font-weight:600;}
           div[data-testid="stExpander"] {border:none;}
+
+          /* ── Live pipeline stepper ── */
+          .stepper {display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px;}
+          .step {flex:1;min-width:118px;background:#141a2a;border:1px solid #232b40;
+                 border-radius:13px;padding:12px 14px;transition:all .3s ease;}
+          .step .st-ic {font-size:1.2rem;line-height:1;}
+          .step .st-name {font-size:.73rem;font-weight:800;color:#8b95ad;margin-top:7px;
+                 text-transform:uppercase;letter-spacing:.5px;}
+          .step .st-state {font-size:.68rem;margin-top:3px;color:#6b7280;font-weight:600;}
+          .step.done {border-color:#22c55e55;background:#0f2018;}
+          .step.done .st-name {color:#4ade80;}
+          .step.done .st-state {color:#4ade80;}
+          .step.active {border-color:#6366f1;background:#161a33;
+                 box-shadow:0 0 0 1px #6366f1, 0 10px 26px rgba(99,102,241,.30);}
+          .step.active .st-name {color:#a5b4fc;}
+          .step.active .st-state {color:#a5b4fc;}
+          .step.active .st-ic {animation:bob 1.15s ease-in-out infinite;}
+          .step.pending {opacity:.5;}
+          @keyframes bob {0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+
+          /* ── Live agent feed ── */
+          .feed-wrap {display:flex;flex-direction:column;gap:8px;max-height:450px;
+                 overflow-y:auto;padding:2px 6px 2px 2px;}
+          .feed-wrap::-webkit-scrollbar {width:8px;}
+          .feed-wrap::-webkit-scrollbar-thumb {background:#2a3450;border-radius:8px;}
+          .feed-card {display:flex;gap:11px;align-items:flex-start;background:#141a2a;
+                 border:1px solid #232b40;border-left:3px solid #6366f1;border-radius:11px;
+                 padding:9px 13px;animation:slidein .26s ease;}
+          @keyframes slidein {from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
+          .feed-ic {width:31px;height:31px;border-radius:9px;display:flex;align-items:center;
+                 justify-content:center;font-size:1.02rem;flex-shrink:0;}
+          .feed-body {flex:1;min-width:0;}
+          .feed-top {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+          .feed-agent {font-weight:800;font-size:.82rem;}
+          .feed-phase {font-size:.64rem;color:#9aa4bd;background:#0e1422;padding:1px 8px;
+                 border-radius:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;}
+          .feed-time {font-size:.68rem;color:#5b647d;margin-left:auto;
+                 font-family:ui-monospace,Consolas,monospace;}
+          .feed-msg {color:#c3cad9;font-size:.84rem;margin-top:3px;line-height:1.45;
+                 word-break:break-word;}
+          .live-dot {display:inline-block;width:9px;height:9px;border-radius:50%;
+                 background:#22c55e;margin-right:8px;box-shadow:0 0 9px #22c55e;
+                 animation:pulse 1.25s ease-in-out infinite;vertical-align:middle;}
+          @keyframes pulse {0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}
         </style>
         """,
         unsafe_allow_html=True,
@@ -190,6 +235,110 @@ def _metric_cards(cards) -> None:
                  f'<div class="{cls}">{_esc(value)}</div></div>')
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
+
+
+# --------------------------------------------------------------------------- #
+# Live run visuals (phase stepper, running metrics, rich agent feed)
+# --------------------------------------------------------------------------- #
+# Per-agent identity: (icon, accent colour) keyed by the agent's ``.name``.
+AGENT_STYLE = {
+    "Orchestrator":          ("🧠", "#8b5cf6"),
+    "Repo Mapper":           ("🗺️", "#3b82f6"),
+    "Dependency Analyzer":   ("📦", "#f59e0b"),
+    "Static Analysis":       ("🔬", "#14b8a6"),
+    "Bug Hunter":            ("🔍", "#ef4444"),
+    "Bug Investigation":     ("🧭", "#a855f7"),
+    "Repair Planner":        ("📝", "#06b6d4"),
+    "Code Generation":       ("🩹", "#22c55e"),
+    "Validation Agent":      ("✅", "#10b981"),
+    "Security Verification": ("🔐", "#f43f5e"),
+    "PR Author":             ("🚀", "#6366f1"),
+}
+_DEFAULT_AGENT_STYLE = ("🤖", "#6b7280")
+
+# Left-border accent per event type (falls back to the agent colour).
+EVENT_ACCENT = {
+    "agent_start":           "#3b82f6",
+    "agent_progress":        "#6366f1",
+    "agent_complete":        "#22c55e",
+    "agent_warning":         "#f59e0b",
+    "agent_retry":           "#eab308",
+    "agent_error":           "#ef4444",
+    "finding_discovered":    "#a855f7",
+    "finding_investigating": "#a855f7",
+    "finding_investigated":  "#a855f7",
+    "pr_created":            "#22c55e",
+    "orchestrator_update":   "#8b5cf6",
+}
+
+# The pipeline phases, in order, for the live stepper. Keys are JobStatus values.
+STEP_PHASES = [
+    ("cloning",                 "Clone",          "📥"),
+    ("phase_1_discovery",       "Discovery",      "🔍"),
+    ("phase_2_investigation",   "Investigation",  "🧭"),
+    ("phase_3_planning",        "Planning",       "📝"),
+    ("phase_4_fix_validate",    "Fix & Validate", "🩹"),
+    ("phase_5_publication",     "Publication",    "🚀"),
+]
+_STEP_INDEX = {key: i for i, (key, _, _) in enumerate(STEP_PHASES)}
+
+
+def _stepper_html(active_idx: int) -> str:
+    """Render the phase stepper. Steps before ``active_idx`` are done, the one at
+    it is running, the rest are queued. Pass ``len(STEP_PHASES)`` for 'all done'."""
+    out = ['<div class="stepper">']
+    for i, (_key, name, icon) in enumerate(STEP_PHASES):
+        if i < active_idx:
+            cls, state, ic = "done", "done", "✅"
+        elif i == active_idx:
+            cls, state, ic = "active", "running…", icon
+        else:
+            cls, state, ic = "pending", "queued", icon
+        out.append(
+            f'<div class="step {cls}"><div class="st-ic">{ic}</div>'
+            f'<div class="st-name">{_esc(name)}</div>'
+            f'<div class="st-state">{state}</div></div>'
+        )
+    out.append("</div>")
+    return "".join(out)
+
+
+def _live_metrics_html(elapsed: float, n_events: int, n_findings: int, n_prs: int) -> str:
+    mm, ss = divmod(int(max(elapsed, 0)), 60)
+
+    def card(label: str, value) -> str:
+        return (f'<div class="mcard"><div class="lbl">{_esc(label)}</div>'
+                f'<div class="val accent">{_esc(value)}</div></div>')
+
+    return (
+        '<div class="mcards">'
+        + card("Elapsed", f"{mm:d}:{ss:02d}")
+        + card("Events", n_events)
+        + card("Fixable bugs", n_findings)
+        + card("Pull requests", n_prs)
+        + "</div>"
+    )
+
+
+def _feed_card_html(item) -> str:
+    """Render one pipeline event as a rich, agent-coloured feed card."""
+    agent = item.agent_name or "Orchestrator"
+    icon, color = AGENT_STYLE.get(agent, _DEFAULT_AGENT_STYLE)
+    accent = EVENT_ACCENT.get(item.event_type, color)
+    phase = (item.phase or "").replace("phase_", "P").replace("_", " ").strip()
+    try:
+        ts = item.timestamp.strftime("%H:%M:%S")
+    except Exception:
+        ts = ""
+    phase_html = f'<span class="feed-phase">{_esc(phase)}</span>' if phase else ""
+    return (
+        f'<div class="feed-card" style="border-left-color:{accent};">'
+        f'<div class="feed-ic" style="background:{color}22;color:{color};">{icon}</div>'
+        f'<div class="feed-body"><div class="feed-top">'
+        f'<span class="feed-agent" style="color:{color};">{_esc(agent)}</span>'
+        f'{phase_html}<span class="feed-time">{_esc(ts)}</span></div>'
+        f'<div class="feed-msg">{_esc(item.message)}</div></div></div>'
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -771,39 +920,75 @@ def main() -> None:
         )
         worker.start()
 
-        st.markdown("### 📡 Live Agent Feed")
+        st.markdown("### 🚦 Live Pipeline")
+        run_status = st.status("🚀 Starting pipeline…", expanded=False)
+        stepper_box = st.empty()
+        metrics_box = st.empty()
+        st.markdown(
+            '<div style="font-weight:800;font-size:.98rem;margin:12px 0 4px;">'
+            '<span class="live-dot"></span>Live Agent Feed</div>',
+            unsafe_allow_html=True,
+        )
         feed_box = st.empty()
-        events_text: list[str] = []
+
+        card_htmls: list[str] = []
         error_payload = None
+        start_t = time.monotonic()
+        max_idx = 0
 
-        with st.status("Running pipeline…", expanded=True) as status:
-            while True:
-                try:
-                    item = event_queue.get(timeout=0.2)
-                except queue.Empty:
-                    if not worker.is_alive():
-                        # Drain anything left, then stop.
-                        if event_queue.empty():
-                            break
-                    continue
+        # Initial paint so the stepper/metrics are visible before the first event.
+        stepper_box.markdown(_stepper_html(max_idx), unsafe_allow_html=True)
+        metrics_box.markdown(_live_metrics_html(0, 0, 0, 0), unsafe_allow_html=True)
 
-                if item is _DONE:
+        while True:
+            try:
+                item = event_queue.get(timeout=0.2)
+            except queue.Empty:
+                if not worker.is_alive() and event_queue.empty():
                     break
-                if isinstance(item, tuple) and item and item[0] == "__error__":
-                    error_payload = item
-                    continue
+                # Keep the elapsed timer alive during quiet stretches (e.g. an LLM call).
+                metrics_box.markdown(
+                    _live_metrics_html(time.monotonic() - start_t, len(card_htmls),
+                                       len(job.findings), len(job.pull_requests)),
+                    unsafe_allow_html=True,
+                )
+                continue
 
-                # Normal PipelineEvent
-                agent = item.agent_name or "—"
-                phase = f" [{item.phase}]" if item.phase else ""
-                events_text.append(f"**{agent}**{phase}: {item.message}")
-                feed_box.markdown("\n\n".join(events_text[-60:]))
-                status.update(label=f"Running… {job.status.value}")
+            if item is _DONE:
+                break
+            if isinstance(item, tuple) and item and item[0] == "__error__":
+                error_payload = item
+                continue
 
-            if error_payload is not None:
-                status.update(label="Pipeline failed", state="error")
-            else:
-                status.update(label="Pipeline complete", state="complete")
+            # Normal PipelineEvent → rich feed card (newest first, capped).
+            card_htmls.append(_feed_card_html(item))
+            feed_box.markdown(
+                '<div class="feed-wrap">' + "".join(reversed(card_htmls[-50:])) + "</div>",
+                unsafe_allow_html=True,
+            )
+
+            # Advance the stepper monotonically (status flips back to phase 4 between PRs).
+            max_idx = max(max_idx, _STEP_INDEX.get(job.status.value, max_idx))
+            stepper_box.markdown(_stepper_html(max_idx), unsafe_allow_html=True)
+            metrics_box.markdown(
+                _live_metrics_html(time.monotonic() - start_t, len(card_htmls),
+                                   len(job.findings), len(job.pull_requests)),
+                unsafe_allow_html=True,
+            )
+            run_status.update(
+                label=f"⚙️ {item.agent_name or 'Orchestrator'} · {job.status.value.replace('_', ' ')}"
+            )
+
+        elapsed = time.monotonic() - start_t
+        if error_payload is not None:
+            run_status.update(label=f"❌ Pipeline failed after {int(elapsed)}s", state="error")
+        else:
+            run_status.update(label=f"✅ Pipeline complete in {int(elapsed)}s", state="complete")
+            stepper_box.markdown(_stepper_html(len(STEP_PHASES)), unsafe_allow_html=True)
+        metrics_box.markdown(
+            _live_metrics_html(elapsed, len(card_htmls), len(job.findings), len(job.pull_requests)),
+            unsafe_allow_html=True,
+        )
 
         worker.join(timeout=1.0)
 

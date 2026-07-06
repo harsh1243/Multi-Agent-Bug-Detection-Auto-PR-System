@@ -92,7 +92,7 @@ class PRAuthorAgent:
                     phase=self.phase, message=f"GitHub operation failed: {str(e)[:160]}",
                 ))
 
-        files_changed = [file_path]
+        files_changed = list(patch.changed_files) or [file_path]
         for f in findings:
             for af in f.affected_files[:3]:
                 if af not in files_changed:
@@ -125,12 +125,13 @@ class PRAuthorAgent:
         return pr
 
     def _apply_patch_to_worktree(self, patch: PatchResult, repo_path: str) -> bool:
-        """Write the validated patch content into the real working tree to commit."""
-        if not patch.ok or patch.new_content is None:
+        """Write every validated changed file into the real working tree to commit."""
+        if not patch.ok or not patch.files:
             return False
-        target = Path(repo_path) / patch.file_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(patch.new_content, encoding="utf-8")
+        for fp in patch.files:
+            target = Path(repo_path) / fp.file_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(fp.new_content, encoding="utf-8")
         return True
 
     async def _generate_description(
@@ -175,12 +176,19 @@ Describe what was wrong and how the change fixes it at the source. Be specific a
                 diff = diff[:6000] + "\n... (diff truncated)"
             diff_block = f"\n\n### Diff\n```diff\n{diff}\n```"
 
+        # Highlight when the fix spans more than one file (cross-file root-cause fix).
+        files_note = ""
+        changed = patch.changed_files
+        if len(changed) > 1:
+            files_note = ("\n\n### Files changed (cross-file fix)\n"
+                          + "\n".join(f"- `{c}`" for c in changed))
+
         return f"""## Fixes in `{file_path}`
 
 {body}
 
 ### Issues addressed
-{issue_lines}
+{issue_lines}{files_note}
 
 ---
 

@@ -60,8 +60,8 @@ class ValidationAgent:
                 result.test_failures.append("Failed to write patched file to sandbox")
                 return result
 
-            # Gate 1: AST syntax
-            result.gate_1_ast_valid = self._gate1_ast(sandbox, patch.file_path)
+            # Gate 1: AST syntax (every changed file)
+            result.gate_1_ast_valid = self._gate1_ast(sandbox, patch.changed_files or [patch.file_path])
             if not result.gate_1_ast_valid:
                 result.test_failures.append("Gate 1: AST syntax error in patched code")
 
@@ -123,13 +123,14 @@ class ValidationAgent:
 
     # ── Patch application ─────────────────────────────────────────────
     def _write_patch(self, patch: PatchResult, sandbox: Path) -> bool:
-        """Write the patched file content into the sandbox."""
-        if not patch.ok or patch.new_content is None:
+        """Write every changed file's content into the sandbox."""
+        if not patch.ok or not patch.files:
             return False
         try:
-            target = sandbox / patch.file_path
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(patch.new_content, encoding="utf-8")
+            for fp in patch.files:
+                target = sandbox / fp.file_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(fp.new_content, encoding="utf-8")
             return True
         except Exception:
             return False
@@ -154,17 +155,18 @@ class ValidationAgent:
         return False
 
     # ── Gates ─────────────────────────────────────────────────────────
-    def _gate1_ast(self, sandbox: Path, file_path: str) -> bool:
-        target = sandbox / file_path
-        if not target.exists():
-            return False
-        try:
-            content = target.read_text(encoding="utf-8", errors="ignore")
+    def _gate1_ast(self, sandbox: Path, file_paths: list[str]) -> bool:
+        """Every changed file must exist; every changed .py file must parse."""
+        for file_path in file_paths:
+            target = sandbox / file_path
+            if not target.exists():
+                return False
             if file_path.endswith(".py"):
-                ast.parse(content)
-            return True
-        except (SyntaxError, UnicodeDecodeError):
-            return False
+                try:
+                    ast.parse(target.read_text(encoding="utf-8", errors="ignore"))
+                except (SyntaxError, UnicodeDecodeError):
+                    return False
+        return True
 
     def _gate2_pytest(self, sandbox: Path, finding: Finding) -> tuple[bool, str, bool]:
         """Run pytest scoped to the changed module.

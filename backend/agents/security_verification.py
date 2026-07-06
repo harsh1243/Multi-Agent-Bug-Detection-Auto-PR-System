@@ -1,4 +1,4 @@
-"""Agent 8: Security Verification - differential security analysis."""
+"""Agent 8: Security Verification - differential security analysis (multi-file)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from models import Finding, PatchResult, ValidationResult, PipelineEvent
 
 
 class SecurityVerificationAgent:
-    """Performs differential security analysis pre/post fix."""
+    """Differential pre/post security analysis across every file the patch changes."""
 
     def __init__(self):
         self.name = "Security Verification"
@@ -27,7 +27,7 @@ class SecurityVerificationAgent:
         repo_path: str,
         event_emitter: Optional[Any] = None,
     ) -> ValidationResult:
-        """Run differential security analysis."""
+        """Run differential security analysis on all changed files."""
         if event_emitter:
             await event_emitter(PipelineEvent(
                 event_type="agent_start", agent_name=self.name,
@@ -35,28 +35,28 @@ class SecurityVerificationAgent:
                 details={"finding_id": finding.id},
             ))
 
+        changed = patch.changed_files or [finding.file_path]
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Baseline (original)
+            # Baseline (original) and patched copies.
             original = Path(tmpdir) / "original"
             shutil.copytree(repo_path, original, ignore=shutil.ignore_patterns(".git"))
-
-            # Patched
             patched = Path(tmpdir) / "patched"
             shutil.copytree(repo_path, patched, ignore=shutil.ignore_patterns(".git"))
             self._apply_patch(patch, patched)
 
-            # Run scans
-            baseline_findings = self._scan_file(original, finding.file_path)
-            post_findings = self._scan_file(patched, finding.file_path)
+            # Scan every changed file before and after.
+            baseline_findings: list[dict] = []
+            post_findings: list[dict] = []
+            for cf in changed:
+                baseline_findings += self._scan_file(original, cf)
+                post_findings += self._scan_file(patched, cf)
 
-            # Differential analysis
-            baseline_ids = {f"{f.get('check_id', '')}:{f.get('start', {}).get('line', 0)}" for f in baseline_findings}
-            post_ids = {f"{f.get('check_id', '')}:{f.get('start', {}).get('line', 0)}" for f in post_findings}
+            baseline_ids = {self._key(f) for f in baseline_findings}
 
             # Original vulnerability should be gone. Scanner findings carry a rule_id
-            # we can re-check; LLM-found bugs have none, so there is no scanner rule
-            # to verify against — treat the original as resolved and rely on the
-            # "no new vulnerabilities" check below. Always a real bool.
+            # we can re-check; LLM-found bugs have none, so rely on the "no new
+            # vulnerabilities" check below. Always a real bool.
             if finding.rule_id:
                 original_vuln_gone = not any(
                     f.get("check_id") == finding.rule_id for f in post_findings
@@ -64,11 +64,12 @@ class SecurityVerificationAgent:
             else:
                 original_vuln_gone = True
 
-            # No NEW medium+ findings introduced
-            new_findings = [f for f in post_findings
-                           if f"{f.get('check_id', '')}:{f.get('start', {}).get('line', 0)}" not in baseline_ids]
-            new_medium_plus = [f for f in new_findings
-                             if f.get("extra", {}).get("severity", "").lower() in ("high", "critical", "medium")]
+            # No NEW medium+ findings introduced anywhere the patch touched.
+            new_findings = [f for f in post_findings if self._key(f) not in baseline_ids]
+            new_medium_plus = [
+                f for f in new_findings
+                if f.get("extra", {}).get("severity", "").lower() in ("high", "critical", "medium")
+            ]
 
             security_clean = bool(original_vuln_gone and len(new_medium_plus) == 0)
 
@@ -83,27 +84,32 @@ class SecurityVerificationAgent:
 
             return ValidationResult(
                 gate_4_security_clean=security_clean,
-                new_security_findings=[{"id": f.get("check_id"), "message": f.get("extra", {}).get("message", "")}
-                                       for f in new_medium_plus],
+                new_security_findings=[
+                    {"id": f.get("check_id"), "message": f.get("extra", {}).get("message", "")}
+                    for f in new_medium_plus
+                ],
             )
 
+    @staticmethod
+    def _key(f: dict) -> str:
+        return f"{f.get('check_id', '')}:{f.get('start', {}).get('line', 0)}"
+
     def _apply_patch(self, patch: PatchResult, sandbox: Path) -> None:
-        """Write the precomputed patched content into the sandbox."""
-        if not patch.ok or patch.new_content is None:
+        """Write every precomputed patched file into the sandbox."""
+        if not patch.ok or not patch.files:
             return
-        target = sandbox / patch.file_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(patch.new_content, encoding="utf-8")
+        for fp in patch.files:
+            target = sandbox / fp.file_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(fp.new_content, encoding="utf-8")
 
     def _scan_file(self, repo: Path, file_path: str) -> list[dict]:
-        """Run bandit on a file, return all findings (normalised to a common shape)."""
+        """Run bandit on a python file, return findings normalised to a common shape."""
         target = repo / file_path
-        if not target.exists():
+        if not target.exists() or not file_path.endswith(".py"):
             return []
 
-        findings = []
-
-        # Bandit
+        findings: list[dict] = []
         try:
             result = subprocess.run(
                 ["bandit", "-f", "json", "-q", str(target)],
@@ -123,5 +129,4 @@ class SecurityVerificationAgent:
                     })
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
             pass
-
         return findings

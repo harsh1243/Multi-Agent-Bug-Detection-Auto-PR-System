@@ -73,6 +73,7 @@ class KnowledgeGraph:
 
     def _pass2_ast(self) -> None:
         """Parse Python files with AST."""
+        self._build_module_index()
         for node, attrs in list(self.graph.nodes(data=True)):
             if attrs.get("type") != "File" or attrs.get("language") != "python":
                 continue
@@ -134,14 +135,69 @@ class KnowledgeGraph:
                 ".jsx": "jsx", ".tsx": "tsx", ".go": "go", ".rs": "rust",
                 ".java": "java"}.get(ext)
 
+    def _build_module_index(self) -> None:
+        """Index python files by importable module path + stem, for import resolution.
+
+        Enables mapping an ``import a.b.c`` / ``from a.b import c`` to the actual repo
+        file node, so we can draw real file→file dependency edges (not just edges to
+        bare module-name nodes). That is what makes blast radius meaningful.
+        """
+        self._file_by_module: dict[str, str] = {}
+        self._file_by_stem: dict[str, list[str]] = {}
+        for n, a in self.graph.nodes(data=True):
+            if a.get("type") != "File" or a.get("language") != "python":
+                continue
+            parts = Path(n).with_suffix("").parts
+            for i in range(len(parts)):
+                self._file_by_module.setdefault(".".join(parts[i:]), n)
+            stem = Path(n).stem
+            self._file_by_stem.setdefault(stem, []).append(n)
+            if stem == "__init__":
+                pkg = ".".join(Path(n).parent.parts)
+                if pkg:
+                    self._file_by_module.setdefault(pkg, n)
+
+    def _resolve_module_to_file(self, mod: str) -> Optional[str]:
+        """Best-effort map an import path (e.g. 'pkg.mod' or 'mod') to a repo file."""
+        idx = getattr(self, "_file_by_module", None)
+        if not mod or idx is None:
+            return None
+        mod = mod.replace("/", ".").strip(".")
+        if mod in idx:
+            return idx[mod]
+        parts = mod.split(".")
+        for i in range(1, len(parts)):
+            cand = ".".join(parts[i:])
+            if cand in idx:
+                return idx[cand]
+        matches = self._file_by_stem.get(parts[-1], [])
+        return matches[0] if len(matches) == 1 else None
+
     def _extract_imports(self, file_node: str, node: ast.AST) -> None:
+        candidates: list[str] = []
         if isinstance(node, ast.Import):
             for alias in node.names:
-                mod = alias.name.split(".")[0]
-                self.graph.add_edge(file_node, mod, type="IMPORTS")
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            mod = node.module.split(".")[0]
-            self.graph.add_edge(file_node, mod, type="IMPORTS")
+                self.graph.add_edge(file_node, alias.name.split(".")[0], type="IMPORTS")
+                candidates.append(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if node.level and node.level > 0:
+                # Relative import: resolve against this file's package directory.
+                base = Path(file_node).parent.parts
+                keep = base[: len(base) - (node.level - 1)] if node.level - 1 > 0 else base
+                prefix = ".".join(keep)
+                module = ".".join(p for p in (prefix, module) if p)
+            if module:
+                self.graph.add_edge(file_node, module.split(".")[0], type="IMPORTS")
+                candidates.append(module)
+                for alias in node.names:
+                    candidates.append(f"{module}.{alias.name}")
+
+        # Resolve module paths to real repo files → file→file dependency edges.
+        for mod in candidates:
+            target = self._resolve_module_to_file(mod)
+            if target and target != file_node:
+                self.graph.add_edge(file_node, target, type="IMPORTS", resolved=True)
 
     def _extract_function(self, file_node: str, node: ast.FunctionDef | ast.AsyncFunctionDef, content: str) -> None:
         func_id = f"{file_node}::{node.name}"

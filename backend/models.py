@@ -104,16 +104,43 @@ class RepairPlan(BaseModel):
     estimated_fix_time_seconds: int = 0
 
 
-class PatchResult(BaseModel):
-    """Result of generating a surgical patch for one file."""
+class FilePatch(BaseModel):
+    """A single file changed by a patch (a patch may span several files)."""
     file_path: str
-    ok: bool = False                       # at least one edit applied cleanly + sane
-    new_content: Optional[str] = None      # full new file content (after applying edits)
-    unified_diff: str = ""                 # minimal diff for the PR
+    new_content: str                       # full new file content (after applying edits)
+    unified_diff: str = ""                 # minimal diff for this file
+    edits_applied: int = 0
+    edits_total: int = 0
+
+
+class PatchResult(BaseModel):
+    """Result of generating a surgical patch spanning one or more files.
+
+    A fix can now touch the symptom file *and* the root-cause file(s). ``files``
+    holds every changed file; ``file_path`` is the epicenter/primary file.
+    """
+    file_path: str                         # primary/epicenter file (back-compat)
+    ok: bool = False                       # at least one file edited cleanly + sane
+    files: list[FilePatch] = Field(default_factory=list)  # every changed file
+    unified_diff: str = ""                 # combined diff across all files (for the PR)
     edits_applied: int = 0
     edits_total: int = 0
     errors: list[str] = Field(default_factory=list)
     raw_response: str = ""                  # raw LLM output (for retry context)
+
+    @property
+    def new_content(self) -> Optional[str]:
+        """Back-compat: content of the primary file if changed, else the first
+        changed file (or None if nothing was changed)."""
+        for fp in self.files:
+            if fp.file_path == self.file_path:
+                return fp.new_content
+        return self.files[0].new_content if self.files else None
+
+    @property
+    def changed_files(self) -> list[str]:
+        """Paths of every file this patch changes."""
+        return [fp.file_path for fp in self.files]
 
 
 class ValidationResult(BaseModel):
