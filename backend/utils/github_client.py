@@ -13,12 +13,36 @@ from github.PullRequest import PullRequest as GHPR
 from config import settings
 
 
+def _token() -> str | None:
+    """Read the GitHub token at call time — not at import time.
+
+    settings.github_token is frozen at module-import time (Pydantic reads env
+    vars once in Settings.__init__).  The Streamlit sidebar sets
+    os.environ["GITHUB_TOKEN"] *after* the backend module tree is imported, so
+    settings.github_token is always None in that path.  Reading directly from
+    os.environ here picks up the live value set by the sidebar.
+    """
+    return (
+        os.environ.get("GITHUB_TOKEN")
+        or settings.github_token
+        or None
+    )
+
+
 class GitHubClient:
     """GitHub operations: clone, branch, commit, PR."""
 
     def __init__(self):
-        # PyGitHub asserts on an empty token — only authenticate when we have one.
-        self.github = Github(settings.github_token) if settings.github_token else Github()
+        # PyGitHub client is rebuilt on first use via _github() so it always
+        # picks up the token even when it is set after module import.
+        self._gh: Github | None = None
+
+    def _github(self) -> Github:
+        """Return an authenticated PyGitHub instance (lazy, token-aware)."""
+        tok = _token()
+        if self._gh is None or (tok and not isinstance(self._gh._Github__requester._Requester__authorizationHeader, str)):
+            self._gh = Github(tok) if tok else Github()
+        return self._gh
 
     def clone_repo(self, repo_url: str, target_dir: Path, branch: str = "main") -> Path:
         """Clone a repository to target directory."""
@@ -26,7 +50,7 @@ class GitHubClient:
         parts = repo_url.rstrip("/").split("/")
         owner, repo = parts[-2], parts[-1].replace(".git", "")
 
-        token_part = f"{settings.github_token}@" if settings.github_token else ""
+        token_part = f"{_token()}@" if _token() else ""
         auth_url = f"https://{token_part}github.com/{owner}/{repo}.git"
 
         target_dir.mkdir(parents=True, exist_ok=True)
@@ -83,7 +107,7 @@ class GitHubClient:
         shallow clone of someone else's repo returns exit code 128 (remote:
         Permission to <owner>/<repo>.git denied).
         """
-        token = settings.github_token
+        token = _token()
         if token:
             # Read the current remote URL and embed the token if not already there.
             result = subprocess.run(
@@ -138,9 +162,9 @@ class GitHubClient:
         draft: bool = False,
     ) -> str:
         """Create a GitHub PR and return the URL."""
-        if not settings.github_token:
+        if not _token():
             return ""
-        repository = self.github.get_repo(f"{owner}/{repo}")
+        repository = self._github().get_repo(f"{owner}/{repo}")
         pr = repository.create_pull(
             title=title, body=body, head=head_branch,
             base=base_branch, draft=draft,
