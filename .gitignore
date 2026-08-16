@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtual environments
+venv/
+.venv/
+.runtime-python/
+env/
+
+# Environment / secrets
+.env
+*.local
+
+# Pipeline data / caches
+chroma_db/
+kg_cache/
+/tmp/repos/
+*.log
+logs/
+.pytest_cache/
+
+# Personal study material and superseded report drafts — not part of the project
+project_report/2_Study_and_Interview_Guide.pdf
+project_report/Study_Guide_v2.html
+project_report/Auto_PR_Project_Complete_Reading_Guide.html
+project_report/Auto_PR_Project_Complete_Reading_Guide.pdf
+project_report/Code_Impact_Auto_Repair_Project_Report.html
+project_report/Code_Impact_Auto_Repair_Project_Report.pdf
+
+# Superseded by project_report/1_Project_Report.pdf (kept locally, untracked)
+/Project_Report.pdf
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.sw?

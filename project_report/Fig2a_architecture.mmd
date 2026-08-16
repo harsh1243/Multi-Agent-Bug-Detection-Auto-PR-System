@@ -1,0 +1,62 @@
+flowchart TB
+  ORC["Orchestrator<br/>orchestrator.py"]
+  CL["PHASE 0 · Acquisition<br/>git clone, depth 1, disposable workdir"]
+  ORC --> CL
+  subgraph P1["PHASE 1 · Discovery"]
+    A1["1 · Repo Mapper<br/>repo_mapper.py"]
+    A2["2 · Dependency Analyzer<br/>dependency_analyzer.py"]
+    A3["3 · Static Analysis<br/>static_analysis.py"]
+    A4["4 · LLM Bug Hunter<br/>llm_bug_hunter.py"]
+    A1 -- "knowledge graph" --> A4
+  end
+  CL -- "asyncio.gather" --> A1
+  CL --> A2
+  CL --> A3
+  DED{{"dedupe, then split<br/>fixable vs report-only"}}
+  A4 --> DED
+  A2 --> DED
+  A3 --> DED
+  subgraph P23["PHASE 2 · Investigation  →  PHASE 3 · Planning"]
+    direction LR
+    A5["5 · Bug Investigation<br/>bug_investigation.py"]
+    A6["6 · Repair Planner<br/>repair_planner.py"]
+    A5 --> A6
+  end
+  DED -- "fixable findings" --> A5
+  subgraph P45["PHASE 4 · Fix and Validate  →  PHASE 5 · Publication"]
+    direction LR
+    A7["7 · Code Generation<br/>code_generation.py"]
+    A8["8 · Validation<br/>validation_agent.py"]
+    A9["9 · Security Verification<br/>security_verification.py"]
+    A10["10 · PR Author<br/>pr_author.py"]
+    A7 --> A8 -- "gates 1, 2, 3" --> A9
+    A9 -- "gate 4 clean" --> A10
+  end
+  A6 -- "for each plan item, serial" --> A7
+  A9 -- "a gate failed, retries remain" --> A7
+  A10 -. "next plan item" .-> A7
+  subgraph TERM["How a run ends"]
+    direction LR
+    END0("COMPLETED<br/>report-only findings")
+    UNRES("unresolved<br/>no PR opened")
+    OUT("Pull request<br/>draft below 70%")
+    END0 ~~~ UNRES ~~~ OUT
+  end
+  DED -. "none fixable" .-> END0
+  A9 -. "retries exhausted" .-> UNRES
+  A10 --> OUT
+
+  classDef orc fill:#eef2ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
+  classDef agent fill:#ffffff,stroke:#7c3aed,stroke-width:1.5px,color:#25324f
+  classDef step fill:#f8fafc,stroke:#94a3b8,stroke-width:1.4px,color:#334155
+  classDef dec fill:#fff7ed,stroke:#d97706,stroke-width:1.5px,color:#92400e
+  classDef good fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46
+  classDef info fill:#f0f9ff,stroke:#0891b2,stroke-width:1.5px,color:#0e7490
+  classDef bad fill:#fef2f2,stroke:#dc2626,stroke-width:1.5px,color:#991b1b
+  class ORC orc
+  class A1,A2,A3,A4,A5,A6,A7,A8,A9,A10 agent
+  class CL step
+  class DED dec
+  class OUT good
+  class END0 info
+  class UNRES bad
