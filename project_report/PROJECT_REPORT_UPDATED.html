@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent Bug Detection & Auto-PR System — Project Report</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --accent: #58a6ff; --accent2: #3fb950; --warn: #d29922;
+    --danger: #f85149; --text: #c9d1d9; --muted: #8b949e;
+    --code-bg: #1f2428;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.7; padding: 0 16px 60px; }
+  .wrapper { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 2rem; color: #fff; padding: 40px 0 8px; border-bottom: 2px solid var(--accent); margin-bottom: 4px; }
+  h2 { font-size: 1.4rem; color: var(--accent); margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  h3 { font-size: 1.1rem; color: #e6edf3; margin: 24px 0 8px; }
+  h4 { font-size: 0.95rem; color: var(--accent2); margin: 16px 0 6px; }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 12px 24px; }
+  li { margin-bottom: 4px; }
+  code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: "JetBrains Mono", "Fira Code", monospace; font-size: 0.85em; color: #e6edf3; }
+  pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0 20px; }
+  pre code { background: none; border: none; padding: 0; font-size: 0.83rem; line-height: 1.6; }
+  .phase-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 16px 0; }
+  .phase-card.p1 { border-left: 4px solid var(--accent); }
+  .phase-card.p2 { border-left: 4px solid #bc8cff; }
+  .phase-card.p3 { border-left: 4px solid var(--accent2); }
+  .phase-card.p4 { border-left: 4px solid var(--warn); }
+  .phase-card.p5 { border-left: 4px solid var(--danger); }
+  .agent-tag { display: inline-block; background: var(--accent); color: #0d1117; border-radius: 4px; padding: 2px 8px; font-size: 0.78rem; font-weight: 700; margin-right: 6px; }
+  .parallel-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .branch { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .branch .label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+  .b1 .label { color: var(--accent); }
+  .b2 .label { color: var(--accent2); }
+  .b3 .label { color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.88rem; }
+  th { background: var(--code-bg); color: var(--accent); text-align: left; padding: 10px 12px; border: 1px solid var(--border); }
+  td { padding: 9px 12px; border: 1px solid var(--border); vertical-align: top; }
+  tr:nth-child(even) td { background: #0f1419; }
+  .chip { display: inline-block; border-radius: 12px; padding: 2px 10px; font-size: 0.75rem; font-weight: 600; margin: 2px; }
+  .chip.green { background: #1a3a25; color: var(--accent2); }
+  .chip.blue { background: #1a2a3a; color: var(--accent); }
+  .chip.yellow { background: #3a2a10; color: var(--warn); }
+  .chip.red { background: #3a1a1a; color: var(--danger); }
+  .example-box { background: #0a1628; border: 1px solid #1d3557; border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
+  .example-box .ex-label { color: var(--accent); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .flow-arrow { text-align: center; color: var(--muted); font-size: 1.3rem; margin: 4px 0; }
+  .toc a { color: var(--accent); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 32px; }
+  .confidence-bar { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.85rem; }
+  .bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<h1>Multi-Agent Bug Detection &amp; Auto-PR System</h1>
+<p class="subtitle">Project Report — Updated Technical Explanation &nbsp;|&nbsp; Author: Harsh Ganatra &nbsp;|&nbsp; 2026</p>
+
+<!-- TABLE OF CONTENTS -->
+<div class="phase-card" style="margin-top:0">
+<h3>Table of Contents</h3>
+<ol class="toc" style="margin-left:20px; line-height:2">
+  <li><a href="#overview">System Overview</a></li>
+  <li><a href="#architecture">Architecture &amp; Pipeline</a></li>
+  <li><a href="#phase1">Phase 1 — Parallel Analysis (Agents 1–4)</a></li>
+  <li><a href="#phase2">Phase 2 — Bug Investigation (Agent 5)</a></li>
+  <li><a href="#phase3">Phase 3 — Repair Planning (Agent 6)</a></li>
+  <li><a href="#phase4">Phase 4 — Fix Generation (Agent 7)</a></li>
+  <li><a href="#phase5">Phase 5 — Validation &amp; PR (Agents 8–10)</a></li>
+  <li><a href="#confidence">Confidence Scoring</a></li>
+  <li><a href="#knowledge-graph">Knowledge Graph Deep-Dive</a></li>
+  <li><a href="#walkthrough">End-to-End Walkthrough Example</a></li>
+</ol>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="overview">1. System Overview</h2>
+<p>
+  This system automates the full bug-detection-to-fix lifecycle for any GitHub repository.
+  You give it a repo URL; it clones the code, runs 10 specialised agents across 5 phases,
+  and — if it is confident enough — raises and <em>auto-merges</em> a pull request with the
+  fix, all without human intervention.
+</p>
+<table>
+  <tr><th>Input</th><td>GitHub repository URL (public or private with token)</td></tr>
+  <tr><th>Output</th><td>One PR per buggy file (auto-merged when confidence ≥ 70 %)</td></tr>
+  <tr><th>LLMs used</th><td>Claude Haiku (cheap triage) + Claude Sonnet (accurate confirmation &amp; fix)</td></tr>
+  <tr><th>Static tools</th><td>Bandit, ESLint, pip-audit, npm-audit, safety</td></tr>
+  <tr><th>Memory</th><td>ChromaDB vector store — stores past fixes for semantic reuse</td></tr>
+  <tr><th>Graph</th><td>NetworkX DiGraph — models every file, function, and import relationship</td></tr>
+</table>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="architecture">2. Architecture &amp; Pipeline</h2>
+<p>
+  The <strong>Orchestrator</strong> is the conductor. It is not one of the 10 agents; it
+  manages them. It uses <code>asyncio.gather()</code> to run independent work in parallel and
+  <code>await</code> to wait for results before the next phase begins.
+</p>
+<pre><code>  GitHub URL
+      │
+      ▼
+  Orchestrator ──── clones repo to temp dir ────────────────────────┐
+      │                                                              │
+      │  asyncio.gather( branch1(), branch2(), branch3() )         │
+      │                                                              │
+  ┌───┴──────────────┬───────────────────┬───────────────────┐      │
+  │  Branch 1        │  Branch 2         │  Branch 3         │      │
+  │  Agent 1 (Repo   │  Agent 2 (Dep     │  Agent 3 (Static  │      │
+  │  Mapper) →       │  Analyzer)        │  Analysis)        │      │
+  │  Agent 4 (LLM    │                   │                   │      │
+  │  Bug Hunter)     │                   │                   │      │
+  └───┬──────────────┴───────────────────┴───────────────────┘      │
+      │  GATHER — merge all findings                                 │
+      ▼                                                              │
+  Agent 5  Bug Investigation     (Phase 2)                          │
+      ▼                                                              │
+  Agent 6  Repair Planner        (Phase 3)                          │
+      ▼                                                              │
+  Agent 7  Fix Generator         (Phase 4) ◄────────────────────────┘
+      ▼
+  Agent 8  Test Runner           (Phase 5)
+      ▼
+  Agent 9  Security Verifier     (Phase 5)
+      ▼
+  Agent 10 PR Author             (Phase 5)  →  GitHub PR (auto-merge if confidence ≥ 70%)
+</code></pre>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="phase1">3. Phase 1 — Parallel Analysis</h2>
+<p>
+  Phase 1 runs <strong>three concurrent branches</strong> via a single
+  <code>asyncio.gather()</code> call. The key insight is that Branch 1 is actually two agents
+  chained sequentially — Agent 4 cannot start until Agent 1 has built the knowledge graph.
+  Branches 2 and 3 are fully independent and need no graph, so all three branches start at the
+  same instant.
+</p>
+
+<div class="parallel-grid">
+  <div class="branch b1">
+    <div class="label">Branch 1 — Sequential Chain</div>
+    <p style="font-size:0.85rem"><strong>Agent 1</strong> (Repo Mapper)<br>↓ builds graph<br><strong>Agent 4</strong> (LLM Bug Hunter)<br>↓ uses graph</p>
+    <p style="font-size:0.78rem; color:var(--muted)">Agent 4 waits for Agent 1's graph before it can rank files by connectivity.</p>
+  </div>
+  <div class="branch b2">
+    <div class="label">Branch 2 — Independent</div>
+    <p style="font-size:0.85rem"><strong>Agent 2</strong><br>(Dependency Analyzer)</p>
+    <p style="font-size:0.78rem; color:var(--muted)">Reads requirements.txt / package.json. No graph needed. Runs pip-audit, npm audit, safety.</p>
+  </div>
+  <div class="branch b3">
+    <div class="label">Branch 3 — Independent</div>
+    <p style="font-size:0.85rem"><strong>Agent 3</strong><br>(Static Analysis)</p>
+    <p style="font-size:0.78rem; color:var(--muted)">Runs Bandit + ESLint on source files. No graph needed. Pattern-based detection.</p>
+  </div>
+</div>
+
+<pre><code># orchestrator.py — the actual asyncio.gather call
+async def _map_then_hunt(kg_ref):
+    kg, findings1 = await agent1.run(repo_path)   # Agent 1 first
+    kg_ref.append(kg)
+    findings4 = await agent4.run(repo_path, kg)   # Agent 4 uses result
+    return findings1 + findings4
+
+findings_a, findings_b, findings_c = await asyncio.gather(
+    _map_then_hunt(kg_holder),   # Branch 1 — chains internally
+    agent2.run(repo_path),       # Branch 2 — independent
+    agent3.run(repo_path),       # Branch 3 — independent
+)
+all_findings = findings_a + findings_b + findings_c
+</code></pre>
+
+<!-- AGENT 1 -->
+<div class="phase-card p1">
+<h3><span class="agent-tag">Agent 1</span> Repo Mapper</h3>
+<p>
+  Agent 1's job is to build a <strong>NetworkX directed graph</strong> that models the entire
+  codebase as a graph of nodes (files, functions, classes) and edges (imports, calls, queries).
+  This graph is used by every downstream agent for impact analysis.
+</p>
+<h4>How it works — 4 build passes</h4>
+<ol>
+  <li><strong>Pass 1 — Structure:</strong> walks every file, creates a node per file with metadata (size, language, last modified).</li>
+  <li><strong>Pass 2 — AST:</strong> for each Python file, calls <code>ast.parse()</code> to extract all functions, classes, and <code>import</code> statements. Adds IMPORTS edges between files.</li>
+  <li><strong>Pass 3 — Framework:</strong> detects Flask/Django/FastAPI routes, SQLAlchemy models, REST endpoints. Adds DEFINES_ROUTE, DEFINES_MODEL edges.</li>
+  <li><strong>Pass 4 — Dynamic:</strong> traces function call patterns across files. Adds CALLS and QUERIES_DB edges.</li>
+</ol>
+
+<div class="example-box">
+<div class="ex-label">Example — Flask Todo App</div>
+<p style="font-size:0.85rem">Given this repo structure:</p>
+<pre><code>todo_app/
+  app.py          ← imports models.py, imports db.py
+  models.py       ← imports db.py
+  db.py           ← standalone
+  routes/
+    tasks.py      ← imports models.py, imports app.py
+</code></pre>
+<p style="font-size:0.85rem">Agent 1 builds this graph:</p>
+<pre><code>Nodes: app.py, models.py, db.py, routes/tasks.py
+Edges (IMPORTS):
+  app.py      → models.py
+  app.py      → db.py
+  models.py   → db.py
+  tasks.py    → models.py
+  tasks.py    → app.py
+</code></pre>
+<p style="font-size:0.85rem">Also finds syntax errors during <code>ast.parse()</code> — e.g. a missing colon in a function definition becomes a <code>SyntaxError</code> Finding immediately.</p>
+</div>
+
+<h4>What it returns</h4>
+<p>A tuple <code>(KnowledgeGraph, list[Finding])</code>. The graph goes to Agent 4; the findings (syntax errors, circular imports, compile errors) join the main finding pool.</p>
+</div>
+
+<!-- AGENT 2 -->
+<div class="phase-card p1">
+<h3><span class="agent-tag">Agent 2</span> Dependency Analyzer</h3>
+<p>
+  Scans <code>requirements.txt</code> and <code>package.json</code> for known CVEs using
+  three tools run concurrently: <strong>pip-audit</strong>, <strong>safety</strong>, and
+  <strong>npm audit</strong>.
+</p>
+
+<div class="example-box">
+<div class="ex-label">Example finding</div>
+<pre><code># requirements.txt contains:
+Flask==1.0.2
+requests==2.18.4
+
+# pip-audit finds:
+CVE-2023-30861 in Flask 1.0.2 — Cookie header bypass
+  Fix: upgrade to Flask >= 2.3.2
+
+PYSEC-2022-42969 in requests 2.18.4 — Header injection
+  Fix: upgrade to requests >= 2.28.0
+</code></pre>
+</div>
+<p>Returns a <code>list[Finding]</code>. Each finding has <code>severity</code>, <code>cve_id</code>, <code>affected_package</code>, <code>fix_version</code>.</p>
+</div>
+
+<!-- AGENT 3 -->
+<div class="phase-card p1">
+<h3><span class="agent-tag">Agent 3</span> Static Analysis</h3>
+<p>
+  Runs <strong>Bandit</strong> (Python security linter) and <strong>ESLint</strong>
+  (JavaScript/TypeScript linter) concurrently. Catches known bad patterns — not logic bugs,
+  just things that match a rule.
+</p>
+
+<div class="example-box">
+<div class="ex-label">Example findings from Bandit</div>
+<pre><code># In db.py:
+password = "admin123"           # B105: hardcoded password
+query = "SELECT * FROM users WHERE id=" + user_id  # B608: SQL injection pattern
+
+# In utils.py:
+data = pickle.loads(user_input)  # B301: unsafe pickle
+eval(user_expression)            # B307: use of eval()
+</code></pre>
+<p style="font-size:0.85rem">Bandit assigns each finding a <code>severity</code> (LOW/MEDIUM/HIGH) and <code>confidence</code> (LOW/MEDIUM/HIGH). Agent 3 filters to MEDIUM+ severity.</p>
+</div>
+<p>Returns <code>list[Finding]</code>. These are pattern-based — Agent 3 cannot tell you <em>why</em> the logic is wrong, only that it matches a known dangerous pattern.</p>
+</div>
+
+<!-- AGENT 4 -->
+<div class="phase-card p1">
+<h3><span class="agent-tag">Agent 4</span> LLM Bug Hunter</h3>
+<p>
+  This is the most sophisticated Phase 1 agent. It uses the knowledge graph from Agent 1 to
+  <em>rank files by importance</em>, then runs a <strong>two-stage LLM triage</strong>:
+  cheap Haiku first, expensive Sonnet only for confirmed candidates.
+</p>
+
+<h4>Stage A — Haiku Triage (one file at a time)</h4>
+<p>
+  <code>_select_files()</code> sorts files by <em>graph degree</em> (number of in + out edges) —
+  more connected = more impactful if buggy = scan first. Then for each file, Agent 4 sends:
+</p>
+<ul>
+  <li>The file's full source code</li>
+  <li>A small graph context snippet: which files import this file, which it imports</li>
+  <li>A prompt asking for a JSON list of <em>candidate</em> bug locations</li>
+</ul>
+<p>Haiku is cheap (~$0.00025/1K tokens), so scanning every file this way is affordable. Haiku returns a list of candidates — it is allowed to have false positives.</p>
+
+<h4>Stage B — Sonnet Confirmation (with related files)</h4>
+<p>
+  For each Haiku candidate, Agent 4 builds a richer context:
+</p>
+<ul>
+  <li>The primary file (full source)</li>
+  <li>All related files from the graph (files that import it or that it imports, up to 3 hops)</li>
+  <li>The candidate locations from Stage A</li>
+</ul>
+<p>Sonnet (~$0.003/1K tokens) confirms or rejects each candidate. A confirmed finding includes <code>root_cause</code>, <code>evidence</code> (exact lines), and a <code>suggested_fix</code>.</p>
+
+<div class="example-box">
+<div class="ex-label">Example — SQL injection bug that Bandit missed</div>
+<pre><code># tasks.py — Haiku triage prompt (simplified):
+# "Here is tasks.py. List any bug candidates as JSON."
+
+# Haiku output:
+[{"line": 34, "issue": "possible SQL injection in get_task()"}]
+
+# Sonnet confirmation — sees tasks.py + models.py + db.py together:
+# Confirms: tasks.py line 34 builds a raw SQL string with user input.
+# models.py line 12 defines the Task model, db.py line 5 creates the connection.
+# Root cause: user_id from request is concatenated directly, no parameterisation.
+# Suggested fix: use parameterised query:
+#   cursor.execute("SELECT * FROM tasks WHERE id = ?", (user_id,))
+</code></pre>
+</div>
+<p>Returns <code>list[Finding]</code> with richer context than Agents 2 and 3 — includes logic-level bugs, not just pattern matches or CVEs.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="phase2">4. Phase 2 — Bug Investigation (Agent 5)</h2>
+
+<div class="phase-card p2">
+<h3><span class="agent-tag">Agent 5</span> Bug Investigator</h3>
+<p>
+  Phase 1 gives us a raw list of findings from all three branches — possibly 30–50 items.
+  Agent 5's job is to <strong>enrich each finding</strong> with impact analysis: what other
+  files break if this bug is present? How far does the damage spread?
+</p>
+<p>For each finding, Agent 5 calls three knowledge-graph methods:</p>
+
+<h4>1. <code>kg.analyze_change(file, hops=2)</code></h4>
+<p>
+  Walks the graph <em>backwards</em> — finds all files that <strong>consume</strong> the
+  buggy file. If <code>tasks.py</code> is buggy, analyze_change finds every file that imports
+  <code>tasks.py</code>, then every file that imports those, up to 2 hops.
+</p>
+<pre><code># tasks.py is buggy
+kg.analyze_change("routes/tasks.py", hops=2)
+
+# Graph edges (IMPORTS direction):
+# app.py → routes/tasks.py  (app.py imports tasks.py)
+# test_app.py → app.py      (test_app.py imports app.py)
+
+# analyze_change walks BACKWARDS (reverse edges):
+# routes/tasks.py ← app.py ← test_app.py
+# Returns: ["app.py", "test_app.py"]  ← these will break too
+</code></pre>
+
+<h4>2. <code>kg.blast_radius(file, hops=2)</code></h4>
+<p>
+  Calls <code>analyze_change()</code> and then adds functions, API endpoints, and DB models
+  that are defined in or used by the affected files. This gives a complete picture of
+  <em>everything</em> that is at risk.
+</p>
+<pre><code>kg.blast_radius("routes/tasks.py")
+# Returns:
+{
+  "affected_files": ["app.py", "test_app.py"],
+  "affected_functions": ["create_task()", "get_task()", "delete_task()"],
+  "affected_apis": ["/tasks", "/tasks/<id>"],
+  "affected_db_models": ["Task"]
+}
+</code></pre>
+
+<h4>3. <code>kg.trace_data_flow(file, line)</code></h4>
+<p>
+  For the specific buggy line, traces <em>where the data comes from</em> (upstream callers)
+  and <em>where it goes</em> (downstream callees). This tells us: who feeds data into the
+  vulnerable function, and who depends on its output.
+</p>
+<pre><code># Bug at tasks.py line 34: raw SQL with user_id
+kg.trace_data_flow("routes/tasks.py", 34)
+# Returns:
+{
+  "upstream": ["app.py:handle_request() → tasks.py:get_task()"],
+  "downstream": ["tasks.py:get_task() → db.py:execute_query()"]
+}
+# So: user input enters via handle_request, passes to get_task, hits execute_query
+# The entire chain is tainted.
+</code></pre>
+
+<h4>ChromaDB — Similar Past Fixes</h4>
+<p>
+  Agent 5 also queries ChromaDB with the finding's description. ChromaDB does a
+  <em>semantic similarity search</em> over all past fixes stored as embeddings. If a similar
+  bug was fixed before, Agent 5 attaches the past fix as a hint for the repair planner.
+</p>
+<pre><code># Query: "SQL injection via string concatenation in query builder"
+# ChromaDB returns:
+{
+  "similar_fix": "Use parameterised queries: cursor.execute(sql, (param,))",
+  "similarity_score": 0.91,
+  "source_commit": "fix/sql-injection-auth-2024-03-15"
+}
+</code></pre>
+
+<p>
+  Finally, Agent 5 calls the LLM for root-cause analysis <strong>only if Agent 4 did not
+  already provide one</strong> — this avoids paying twice for the same LLM call.
+</p>
+<p>Returns the same <code>list[Finding]</code> but each item now has: <code>blast_radius</code>, <code>data_flow</code>, <code>similar_past_fix</code>, <code>root_cause</code>.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="phase3">5. Phase 3 — Repair Planning (Agent 6)</h2>
+
+<div class="phase-card p3">
+<h3><span class="agent-tag">Agent 6</span> Repair Planner</h3>
+<p>
+  Agent 6 takes the enriched findings list and produces an <strong>ordered repair plan</strong>.
+  The key problems it solves:
+</p>
+<ul>
+  <li>Multiple findings may be in the same file — combine them into one PR instead of many.</li>
+  <li>Some files depend on other files — fix dependencies <em>before</em> dependents.</li>
+  <li>Security bugs should be fixed before logic bugs.</li>
+</ul>
+
+<h4>Step 1 — Group by file</h4>
+<pre><code># Findings from Phase 2:
+# Finding A: tasks.py — SQL injection (HIGH severity)
+# Finding B: tasks.py — missing input validation (MEDIUM)
+# Finding C: models.py — insecure default value (LOW)
+# Finding D: db.py — outdated library (CVE)
+
+# After grouping:
+# tasks.py   → [Finding A, Finding B]
+# models.py  → [Finding C]
+# db.py      → [Finding D]
+</code></pre>
+
+<h4>Step 2 — Build file dependency graph &amp; topological sort</h4>
+<pre><code># File import graph (from knowledge graph):
+# tasks.py imports models.py
+# tasks.py imports db.py
+# models.py imports db.py
+
+# Topological sort (dependencies first):
+# 1. db.py      (no dependencies — fix first)
+# 2. models.py  (depends on db.py)
+# 3. tasks.py   (depends on both)
+
+# Security files (CVE findings) are promoted to top of their tier.
+# Final order: db.py → models.py → tasks.py
+</code></pre>
+
+<h4>Step 3 — Assign initial confidence</h4>
+<p>Each <code>RepairPlanItem</code> starts with a pre-score:</p>
+<ul>
+  <li>Base: <strong>0.50</strong></li>
+  <li>+0.15 if ChromaDB returned a similar past fix (cache hit)</li>
+  <li>= 0.65 with cache hit, 0.50 without</li>
+</ul>
+<p>This is a starting point; Agents 8 and 9 adjust it upward or downward after testing.</p>
+
+<p>Returns an ordered <code>list[RepairPlanItem]</code>. Each item holds: <code>file</code>, <code>findings</code>, <code>fix_strategy</code> (combined prompt for all findings in that file), <code>confidence_pre_score</code>, <code>fix_order</code>.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="phase4">6. Phase 4 — Fix Generation (Agent 7)</h2>
+
+<div class="phase-card p4">
+<h3><span class="agent-tag">Agent 7</span> Fix Generator</h3>
+<p>
+  For each <code>RepairPlanItem</code> from Agent 6, Agent 7 calls Claude Sonnet with the
+  full file source, the combined fix strategy, related files context, and any similar past fix
+  from ChromaDB. Sonnet returns a patch in <strong>SEARCH/REPLACE format</strong>.
+</p>
+
+<h4>SEARCH/REPLACE patch format</h4>
+<p>
+  Rather than generating an entire new file (risky — could change unrelated lines), the LLM
+  produces anchored edit blocks. Each block specifies an exact string to find and the
+  replacement. The system applies them sequentially.
+</p>
+<pre><code># LLM output for tasks.py SQL injection fix:
+
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; SEARCH
+def get_task(user_id):
+    query = "SELECT * FROM tasks WHERE id=" + user_id
+    cursor.execute(query)
+=======
+def get_task(user_id):
+    query = "SELECT * FROM tasks WHERE id = ?"
+    cursor.execute(query, (user_id,))
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; REPLACE
+</code></pre>
+<p>
+  The SEARCH string must match <em>exactly</em> (including whitespace). If it doesn't match,
+  the patch is rejected and Agent 7 retries with a fresh context. Patches can span multiple
+  files — one repair plan item can produce edits across <code>tasks.py</code> and
+  <code>models.py</code> if both need changes.
+</p>
+
+<h4>ChromaDB write-back</h4>
+<p>
+  After generating the fix, Agent 7 stores the (bug description → fix) pair in ChromaDB.
+  Future runs on similar codebases will find this as a "cache hit" and get a head-start on
+  confidence scoring.
+</p>
+
+<p>Returns a <code>list[RepairResult]</code> — each with the patched file content, the diff, and the patch as applied.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="phase5">7. Phase 5 — Validation &amp; PR (Agents 8–10)</h2>
+<p>
+  Phase 5 has a <strong>retry loop</strong>: if Agent 8 (tests) or Agent 9 (security) reject
+  the fix, control returns to Agent 7 for a revised patch. Up to 3 iterations per file.
+</p>
+
+<div class="phase-card p5">
+<h3><span class="agent-tag">Agent 8</span> Test Runner</h3>
+<p>
+  Applies the patch to the real files in the cloned repo, then runs the project's test suite
+  (<code>pytest</code>, <code>npm test</code>, <code>go test</code>, etc. — auto-detected).
+  Captures exit code, number of passing/failing tests, and stderr.
+</p>
+<pre><code># After patching tasks.py:
+pytest tests/ -x --tb=short
+# Result: 14 passed, 0 failed → test_score = 1.0  (+0.40 to confidence)
+# Result: 12 passed, 2 failed → test_score = 0.86 (+0.34)
+# Result: 0 passed (crash)    → test_score = 0.0  → trigger retry
+</code></pre>
+<p>
+  Test score contributes <strong>40%</strong> to the final confidence score — it is the
+  largest single signal. If tests fail catastrophically, Agent 8 returns a failure result
+  and the orchestrator sends the patch back to Agent 7 with the test output as feedback.
+</p>
+</div>
+
+<div class="phase-card p5">
+<h3><span class="agent-tag">Agent 9</span> Security Verifier</h3>
+<p>
+  Re-runs Bandit and the dependency scanner on the <em>patched</em> file. Checks:
+</p>
+<ul>
+  <li>Did the patch introduce any <em>new</em> security issues?</li>
+  <li>Did it actually fix the reported issue (original finding no longer triggered)?</li>
+  <li>Is the fix semantically sound (LLM-based check for logic correctness)?</li>
+</ul>
+<pre><code># Before patch: B608 SQL injection found at line 34
+# After patch:  B608 no longer triggered ✓
+# New issues:   none ✓
+# Semantic check (Haiku): "Fix looks correct — uses parameterised query" ✓
+# security_score = 1.0  (+0.25 to confidence)
+</code></pre>
+<p>Security contributes <strong>25%</strong> of final confidence. If a new HIGH severity issue appears, Agent 9 triggers a retry.</p>
+</div>
+
+<div class="phase-card p5">
+<h3><span class="agent-tag">Agent 10</span> PR Author</h3>
+<p>
+  Agent 10 creates the GitHub PR and, if confidence is high enough, auto-merges it.
+</p>
+<pre><code># Decision logic:
+requires_approval = (confidence &lt; 0.70) or (file in critical_path_files)
+
+if requires_approval:
+    # Create a DRAFT PR — human must review before merge
+    github.create_pull_request(..., draft=True)
+else:
+    # Create a normal PR then immediately merge it
+    pr_url = github.create_pull_request(...)
+    merged = github.merge_pull_request(repo_owner, repo_name, pr_url,
+                                        commit_message=title)
+</code></pre>
+<p>The <code>merge_pull_request()</code> method polls GitHub's <code>mergeable</code> flag up to 5 times (2 s apart) because GitHub computes merge-ability asynchronously. Once mergeable, it squash-merges.</p>
+<h4>PR description generated by Agent 10:</h4>
+<pre><code>## Bug Fix: SQL Injection in routes/tasks.py
+
+**Root cause:** User-supplied `user_id` was concatenated directly into a
+SQL string at line 34, allowing an attacker to escape the query.
+
+**Fix applied:** Replaced string concatenation with a parameterised query
+using `cursor.execute(sql, (param,))`.
+
+**Blast radius:** app.py, test_app.py, Task model, /tasks API endpoints.
+
+**Confidence:** 87% (tests: 14/14 pass, security scan clean, cache hit)
+
+**Auto-merged:** Yes (confidence ≥ 70%, not on critical path)
+</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="confidence">8. Confidence Scoring — 5-Signal Model</h2>
+
+<p>Every repair goes through five independent signals. The final confidence score decides whether to auto-merge or draft-PR.</p>
+
+<table>
+  <tr>
+    <th>Signal</th><th>Weight</th><th>How it's measured</th><th>Score range</th>
+  </tr>
+  <tr>
+    <td><strong>Tests</strong></td><td>40%</td>
+    <td>pass_count / total_count from test runner</td><td>0.0 – 1.0</td>
+  </tr>
+  <tr>
+    <td><strong>Security</strong></td><td>25%</td>
+    <td>Bandit re-scan: no new issues + original issue gone</td><td>0.0 – 1.0</td>
+  </tr>
+  <tr>
+    <td><strong>Cache hit</strong></td><td>15%</td>
+    <td>ChromaDB similarity ≥ 0.85 → score 1.0, else 0</td><td>0.0 or 1.0</td>
+  </tr>
+  <tr>
+    <td><strong>AST validity</strong></td><td>10%</td>
+    <td><code>ast.parse()</code> succeeds on patched file</td><td>0.0 or 1.0</td>
+  </tr>
+  <tr>
+    <td><strong>Fix order</strong></td><td>10%</td>
+    <td>Penalties if security bugs not fixed first; bonus if topological order respected</td><td>0.5 – 1.0</td>
+  </tr>
+</table>
+
+<pre><code>confidence = (
+    0.40 * test_score +
+    0.25 * security_score +
+    0.15 * cache_score +
+    0.10 * ast_score +
+    0.10 * order_score
+)
+
+# Example — all signals green:
+# 0.40*1.0 + 0.25*1.0 + 0.15*1.0 + 0.10*1.0 + 0.10*1.0 = 1.00
+# → auto-merge
+
+# Example — tests pass but no cache hit, no security scan:
+# 0.40*1.0 + 0.25*0.0 + 0.15*0.0 + 0.10*1.0 + 0.10*0.8 = 0.58
+# → draft PR (below 0.70 threshold)
+</code></pre>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="knowledge-graph">9. Knowledge Graph Deep-Dive</h2>
+
+<p>The knowledge graph (<code>backend/knowledge_graph.py</code>) is a <code>networkx.DiGraph</code> where <strong>direction matters</strong>. Edge direction = "A imports B" means edge goes A → B.</p>
+
+<h3>Node types &amp; edge types</h3>
+<table>
+  <tr><th>Node type</th><th>Examples</th></tr>
+  <tr><td>FILE</td><td>routes/tasks.py, models.py, db.py</td></tr>
+  <tr><td>FUNCTION</td><td>get_task(), create_task(), execute_query()</td></tr>
+  <tr><td>CLASS</td><td>Task, User, DatabaseManager</td></tr>
+  <tr><td>ROUTE</td><td>GET /tasks, POST /tasks/&lt;id&gt;</td></tr>
+</table>
+<table>
+  <tr><th>Edge type</th><th>Meaning</th><th>Direction</th></tr>
+  <tr><td>IMPORTS</td><td>File A imports file B</td><td>A → B</td></tr>
+  <tr><td>CALLS</td><td>Function A calls function B</td><td>A → B</td></tr>
+  <tr><td>DEFINES</td><td>File A defines function/class B</td><td>A → B</td></tr>
+  <tr><td>QUERIES_DB</td><td>Function A queries model B</td><td>A → B</td></tr>
+  <tr><td>DEFINES_ROUTE</td><td>File A defines API route B</td><td>A → B</td></tr>
+</table>
+
+<h3>Why direction matters for impact analysis</h3>
+<pre><code># Graph: app.py → tasks.py → db.py
+#        (app imports tasks; tasks imports db)
+
+# If db.py is buggy — who is affected?
+# We need files that CONSUME db.py — walk BACKWARDS (reverse edges):
+# db.py ← tasks.py ← app.py
+# Both tasks.py and app.py will break if db.py has a bug.
+# This is analyze_change() — it reverses the import direction.
+
+# If we walked FORWARDS from db.py, we'd get nothing (db.py imports no one).
+# Forward traversal answers "what does db.py depend on?" — wrong question.
+</code></pre>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<h2 id="walkthrough">10. End-to-End Walkthrough — Flask Todo App</h2>
+
+<p>Putting it all together with a concrete example: a Flask todo app with a SQL injection bug.</p>
+
+<div class="example-box">
+<div class="ex-label">Input</div>
+<pre><code>Repo URL: https://github.com/example/flask-todo-app
+Files: app.py, routes/tasks.py, models.py, db.py, tests/test_tasks.py
+</code></pre>
+</div>
+
+<h3>Phase 1 — Parallel Analysis</h3>
+<pre><code>t=0s  Orchestrator clones repo → /tmp/flask-todo-app/
+
+t=1s  asyncio.gather() fires three branches simultaneously:
+
+  Branch 1: Agent 1 starts building knowledge graph
+    → ast.parse() on all .py files
+    → finds: app.py imports tasks.py, tasks.py imports db.py
+    → graph built at t=8s
+    → Agent 4 starts (has graph now)
+      → Stage A: Haiku scans tasks.py (highest graph degree)
+        → finds candidate: line 34, possible SQL injection
+      → Stage B: Sonnet confirms with tasks.py + db.py + models.py context
+        → Finding: SQL injection at tasks.py:34, severity=HIGH
+
+  Branch 2: Agent 2 (runs concurrently from t=1s)
+    → pip-audit scans requirements.txt
+    → Finding: Flask 1.0.2 CVE-2023-30861, fix=Flask>=2.3.2
+
+  Branch 3: Agent 3 (runs concurrently from t=1s)
+    → Bandit scans all .py files
+    → Finding: tasks.py:34 B608 SQL injection pattern (confirms Agent 4)
+    → Finding: db.py:5 B105 hardcoded password
+
+t=22s GATHER — all branches complete
+all_findings = [SQL injection, Flask CVE, SQL pattern, hardcoded password]
+</code></pre>
+
+<h3>Phase 2 — Bug Investigation</h3>
+<pre><code>Agent 5 enriches each finding:
+
+For SQL injection in tasks.py:34:
+  analyze_change("tasks.py") → ["app.py"]  (app.py imports tasks.py)
+  blast_radius("tasks.py")   → {
+    affected_files: ["app.py", "tests/test_tasks.py"],
+    affected_apis: ["GET /tasks", "GET /tasks/<id>"],
+    affected_functions: ["get_task()", "list_tasks()"]
+  }
+  trace_data_flow("tasks.py", 34) → {
+    upstream: ["app.py:handle_request() → tasks.py:get_task()"],
+    downstream: ["tasks.py:get_task() → db.py:cursor.execute()"]
+  }
+  ChromaDB query: "SQL injection string concatenation"
+    → similar past fix found (score 0.91): "use parameterised queries"
+  root_cause: already provided by Agent 4 — skip LLM call ✓
+</code></pre>
+
+<h3>Phase 3 — Repair Planning</h3>
+<pre><code>Agent 6 groups findings:
+  tasks.py → [SQL injection (HIGH), SQL pattern (MEDIUM)]  → combined fix
+  db.py    → [hardcoded password (MEDIUM)]
+  requirements.txt → [Flask CVE (HIGH)]
+
+Dependency order: requirements.txt → db.py → tasks.py
+  (tasks.py imports db.py, so db.py fixed first)
+
+Flask CVE (security) promoted ahead of db.py password.
+
+Final order: requirements.txt → db.py → tasks.py
+
+Confidence pre-scores:
+  requirements.txt: 0.50 + 0.15 (cache hit) = 0.65
+  db.py:            0.50 + 0.00              = 0.50
+  tasks.py:         0.50 + 0.15 (cache hit)  = 0.65
+</code></pre>
+
+<h3>Phase 4 — Fix Generation</h3>
+<pre><code>Agent 7 generates SEARCH/REPLACE patches:
+
+Patch 1 — requirements.txt:
+  Flask==1.0.2  →  Flask==2.3.2
+
+Patch 2 — db.py:
+  password = "admin123"  →  password = os.environ.get("DB_PASSWORD", "")
+
+Patch 3 — tasks.py:
+  query = "SELECT * FROM tasks WHERE id=" + user_id
+  cursor.execute(query)
+  →
+  query = "SELECT * FROM tasks WHERE id = ?"
+  cursor.execute(query, (user_id,))
+</code></pre>
+
+<h3>Phase 5 — Validation &amp; PR</h3>
+<pre><code>Agent 8 (Test Runner):
+  Apply all patches → run pytest tests/
+  Result: 14 passed, 0 failed
+  test_score = 1.0
+
+Agent 9 (Security Verifier):
+  Re-run Bandit on patched files:
+  → B608 SQL injection: gone ✓
+  → B105 hardcoded password: gone ✓
+  → New issues: none ✓
+  security_score = 1.0
+
+Final confidence = 0.40*1.0 + 0.25*1.0 + 0.15*1.0 + 0.10*1.0 + 0.10*1.0
+                 = 1.00  →  AUTO-MERGE ✓
+
+Agent 10 (PR Author):
+  Branch: fix/sql-injection-tasks-py-20260818
+  PR title: "fix: SQL injection and hardcoded credentials (3 files)"
+  PR created → merge_pull_request() polls mergeable flag → squash-merges
+  PR auto-merged ✓
+</code></pre>
+
+<h3>Summary Table — All 10 Agents</h3>
+<table>
+  <tr>
+    <th>#</th><th>Agent</th><th>Phase</th><th>Input</th><th>Output</th><th>Tools Used</th>
+  </tr>
+  <tr>
+    <td>1</td><td>Repo Mapper</td><td>1</td>
+    <td>repo path</td><td>KnowledgeGraph + syntax findings</td>
+    <td>ast.parse(), NetworkX</td>
+  </tr>
+  <tr>
+    <td>2</td><td>Dependency Analyzer</td><td>1</td>
+    <td>requirements.txt / package.json</td><td>CVE findings</td>
+    <td>pip-audit, safety, npm audit</td>
+  </tr>
+  <tr>
+    <td>3</td><td>Static Analysis</td><td>1</td>
+    <td>source files</td><td>pattern-based findings</td>
+    <td>Bandit, ESLint</td>
+  </tr>
+  <tr>
+    <td>4</td><td>LLM Bug Hunter</td><td>1</td>
+    <td>source files + KG</td><td>logic/context bug findings</td>
+    <td>Haiku (triage) + Sonnet (confirm)</td>
+  </tr>
+  <tr>
+    <td>5</td><td>Bug Investigator</td><td>2</td>
+    <td>all findings + KG</td><td>enriched findings with blast radius</td>
+    <td>NetworkX graph traversal, ChromaDB</td>
+  </tr>
+  <tr>
+    <td>6</td><td>Repair Planner</td><td>3</td>
+    <td>enriched findings</td><td>ordered repair plan</td>
+    <td>topological sort, file dep graph</td>
+  </tr>
+  <tr>
+    <td>7</td><td>Fix Generator</td><td>4</td>
+    <td>repair plan + source</td><td>SEARCH/REPLACE patches</td>
+    <td>Claude Sonnet, ChromaDB write</td>
+  </tr>
+  <tr>
+    <td>8</td><td>Test Runner</td><td>5</td>
+    <td>patched files</td><td>test_score, pass/fail counts</td>
+    <td>pytest / npm test / go test</td>
+  </tr>
+  <tr>
+    <td>9</td><td>Security Verifier</td><td>5</td>
+    <td>patched files</td><td>security_score, new issue check</td>
+    <td>Bandit re-scan, Haiku semantic check</td>
+  </tr>
+  <tr>
+    <td>10</td><td>PR Author</td><td>5</td>
+    <td>patches + confidence</td><td>GitHub PR (auto-merged if ≥ 70%)</td>
+    <td>PyGitHub, squash merge</td>
+  </tr>
+</table>
+
+</div><!-- /wrapper -->
+</body>
+</html>

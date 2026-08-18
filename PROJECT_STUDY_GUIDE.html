@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Agent Bug Detection & Auto-PR System — Complete Study Guide</title>
+<style>
+  :root {
+    --bg: #0b0f1a; --card: #111728; --border: #1e2a42;
+    --text: #dce3f5; --muted: #7f8aa3; --accent: #818cf8;
+    --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+    --blue: #60a5fa; --purple: #c084fc; --teal: #2dd4bf;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.65; font-size: 15px;
+    padding: 0 0 80px;
+  }
+  @media print {
+    body { background: #fff; color: #111; }
+    .card { background: #f9f9f9 !important; border-color: #ddd !important; }
+    code, pre { background: #f0f0f0 !important; color: #111 !important; }
+    .cover { background: #1a1a2e !important; }
+    a { color: #3b3b8f; }
+  }
+
+  /* ---- Cover ---- */
+  .cover {
+    background: linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 100%);
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center;
+    padding: 60px 40px; position: relative; overflow: hidden;
+  }
+  .cover::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(99,102,241,.3), transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(168,85,247,.2), transparent 50%);
+  }
+  .cover-content { position: relative; z-index: 1; max-width: 900px; }
+  .cover-badge {
+    display: inline-block; background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.25); border-radius: 999px;
+    padding: 6px 20px; font-size: 12px; font-weight: 700;
+    letter-spacing: 2px; text-transform: uppercase; color: #c4b5fd;
+    margin-bottom: 24px;
+  }
+  .cover h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 900;
+    color: #fff; letter-spacing: -1px; line-height: 1.1;
+    margin-bottom: 20px;
+  }
+  .cover p {
+    font-size: 1.15rem; color: #e9e5ff; max-width: 720px;
+    margin: 0 auto 32px; line-height: 1.6;
+  }
+  .cover-tags { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+  .cover-tags span {
+    background: rgba(255,255,255,.14); color: #fff;
+    border-radius: 8px; padding: 6px 16px; font-size: 13px; font-weight: 600;
+  }
+
+  /* ---- Layout ---- */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .page-break { page-break-before: always; }
+
+  /* ---- TOC ---- */
+  .toc {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; margin: 40px 0;
+  }
+  .toc h2 { color: var(--accent); margin-bottom: 20px; font-size: 1.2rem; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: var(--blue); text-decoration: none; }
+  .toc a:hover { text-decoration: underline; }
+  .toc .sub { margin-left: 20px; font-size: 13px; color: var(--muted); }
+
+  /* ---- Section headers ---- */
+  .section-header {
+    display: flex; align-items: center; gap: 14px;
+    margin: 60px 0 24px; padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-header .num {
+    background: linear-gradient(135deg, #6366f1, #9333ea);
+    color: #fff; font-size: 12px; font-weight: 900;
+    width: 32px; height: 32px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; letter-spacing: 0.5px;
+  }
+  .section-header h2 {
+    font-size: 1.5rem; color: #eef2ff; font-weight: 800;
+  }
+
+  /* ---- Cards ---- */
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 24px; margin: 16px 0;
+  }
+  .card h3 { color: var(--accent); margin-bottom: 12px; font-size: 1rem; }
+  .card h4 { color: var(--text); margin: 14px 0 8px; font-size: .95rem; font-weight: 700; }
+
+  /* ---- Agent cards ---- */
+  .agent-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 20px 0; }
+  @media (max-width: 700px) { .agent-grid { grid-template-columns: 1fr; } }
+  .agent-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px;
+    border-left: 4px solid var(--accent);
+  }
+  .agent-card.full { grid-column: 1 / -1; }
+  .agent-num { font-size: 11px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+  .agent-name { font-size: 1.05rem; font-weight: 800; color: #eef2ff; margin: 4px 0 10px; }
+  .agent-phase { font-size: 11px; color: var(--muted); background: #0e1422; padding: 2px 8px; border-radius: 6px; display: inline-block; margin-bottom: 10px; }
+  .agent-body { color: #c3cad9; font-size: 14px; line-height: 1.6; }
+
+  /* ---- Diagrams ---- */
+  .diagram {
+    background: #080d18; border: 1px solid #1a2640;
+    border-radius: 12px; padding: 24px; margin: 20px 0;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    font-size: 12.5px; line-height: 1.6; color: #94a8c7;
+    overflow-x: auto; white-space: pre;
+  }
+
+  /* ---- Code ---- */
+  pre, code {
+    font-family: 'Cascadia Code', 'Consolas', monospace;
+    background: #080d18; color: #94a8c7;
+    border-radius: 8px; font-size: 13px;
+  }
+  pre { padding: 18px; margin: 14px 0; overflow-x: auto; border: 1px solid #1a2640; line-height: 1.55; }
+  code { padding: 2px 7px; }
+
+  /* ---- Pills / badges ---- */
+  .pill {
+    display: inline-block; padding: 3px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 700; margin: 2px;
+  }
+  .pill-blue { background: #1e40af33; color: #93c5fd; border: 1px solid #1e40af55; }
+  .pill-green { background: #14532d33; color: #86efac; border: 1px solid #14532d55; }
+  .pill-red { background: #7f1d1d33; color: #fca5a5; border: 1px solid #7f1d1d55; }
+  .pill-yellow { background: #78350f33; color: #fde68a; border: 1px solid #78350f55; }
+  .pill-purple { background: #4c1d9533; color: #d8b4fe; border: 1px solid #4c1d9555; }
+
+  /* ---- Tables ---- */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 14px; }
+  th { background: #0e1422; color: var(--accent); text-align: left; padding: 10px 14px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--border); color: #c3cad9; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  /* ---- Callouts ---- */
+  .callout {
+    border-left: 4px solid; border-radius: 0 10px 10px 0;
+    padding: 14px 18px; margin: 16px 0; font-size: 14px;
+  }
+  .callout-blue { border-color: #3b82f6; background: #1e3a5f22; color: #bfdbfe; }
+  .callout-green { border-color: #22c55e; background: #14532d22; color: #bbf7d0; }
+  .callout-yellow { border-color: #f59e0b; background: #78350f22; color: #fde68a; }
+  .callout-red { border-color: #ef4444; background: #7f1d1d22; color: #fecaca; }
+  .callout strong { font-weight: 800; }
+
+  /* ---- Confidence bar ---- */
+  .conf-table td:last-child {
+    font-weight: 800; color: var(--green);
+  }
+
+  /* ---- Flow steps ---- */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .flow-left { display: flex; flex-direction: column; align-items: center; }
+  .flow-dot {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #9333ea);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 900; color: #fff; flex-shrink: 0;
+  }
+  .flow-line {
+    width: 2px; flex: 1; min-height: 30px;
+    background: linear-gradient(to bottom, #6366f155, transparent);
+    margin: 4px auto;
+  }
+  .flow-body { padding: 4px 0 28px; flex: 1; }
+  .flow-body h4 { color: #eef2ff; margin-bottom: 6px; font-size: .95rem; }
+  .flow-body p { color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+
+  /* ---- Q&A ---- */
+  .qa { margin: 16px 0; }
+  .question {
+    background: #161c2e; border: 1px solid #2a3650;
+    border-left: 4px solid #6366f1;
+    border-radius: 0 10px 10px 0; padding: 14px 18px;
+    font-weight: 700; color: #c4b5fd; margin-bottom: 0;
+    font-size: 14px;
+  }
+  .answer {
+    background: #0e1422; border: 1px solid var(--border);
+    border-top: none; border-radius: 0 0 10px 10px;
+    padding: 14px 18px; font-size: 14px; color: #c3cad9;
+    line-height: 1.6; margin-bottom: 16px;
+  }
+
+  h3.sub { color: var(--blue); font-size: 1rem; margin: 24px 0 10px; }
+  p { margin: 8px 0; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+  strong { color: #e2e8f0; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  /* ---- Signal bar ---- */
+  .signal-bar {
+    display: flex; align-items: center; gap: 12px; margin: 8px 0;
+  }
+  .signal-label { width: 140px; font-size: 13px; color: var(--muted); flex-shrink: 0; }
+  .signal-track {
+    flex: 1; height: 10px; background: #1a2640; border-radius: 999px; overflow: hidden;
+  }
+  .signal-fill { height: 100%; border-radius: 999px; }
+  .signal-pct { font-size: 12px; font-weight: 800; color: var(--green); width: 36px; text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- ================================================================== COVER -->
+<div class="cover">
+  <div class="cover-content">
+    <div class="cover-badge">Complete Study Guide — Interview Ready</div>
+    <h1>Multi-Agent Bug Detection<br>&amp; Auto-PR System</h1>
+    <p>A deep-dive study guide covering every component, agent, algorithm,
+    and design decision — written so you can explain the entire system from
+    scratch in a technical interview.</p>
+    <div class="cover-tags">
+      <span>🐍 Python / Streamlit</span>
+      <span>🧠 Claude LLM (Haiku + Sonnet)</span>
+      <span>🕸️ NetworkX Knowledge Graph</span>
+      <span>🔗 GitHub API / Auto-PR</span>
+      <span>🗂️ ChromaDB Vector Memory</span>
+      <span>🩹 Surgical Patching</span>
+      <span>10 Orchestrated Agents</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ================================================================== TOC -->
+<div class="toc">
+  <h2>📖 Table of Contents</h2>
+  <ol>
+    <li><a href="#s1">Project Overview — What, Why, How</a></li>
+    <li><a href="#s2">High-Level Architecture</a></li>
+    <li><a href="#s3">Tech Stack &amp; Dependencies</a></li>
+    <li><a href="#s4">Data Models (the language of the system)</a></li>
+    <li><a href="#s5">Knowledge Graph — Core Engine</a></li>
+    <li><a href="#s6">The 10 Agents — Deep Dive</a>
+      <ol class="sub">
+        <li>Repo Mapper</li>
+        <li>Dependency Analyzer</li>
+        <li>Static Analysis</li>
+        <li>LLM Bug Hunter</li>
+        <li>Bug Investigation</li>
+        <li>Repair Planner</li>
+        <li>Code Generation</li>
+        <li>Validation Agent</li>
+        <li>Security Verification</li>
+        <li>PR Author</li>
+      </ol>
+    </li>
+    <li><a href="#s7">Surgical Patcher — SEARCH/REPLACE Mechanics</a></li>
+    <li><a href="#s8">Confidence Scoring (5-Signal System)</a></li>
+    <li><a href="#s9">ChromaDB Memory Layer</a></li>
+    <li><a href="#s10">LLM Client — Tiered Models + Aerolink Proxy</a></li>
+    <li><a href="#s11">GitHub Integration — Branches, Commits &amp; PRs</a></li>
+    <li><a href="#s12">Streamlit UI — Architecture &amp; Live Feed</a></li>
+    <li><a href="#s13">Complete Pipeline Flow — Step by Step</a></li>
+    <li><a href="#s14">Configuration System (Pydantic Settings)</a></li>
+    <li><a href="#s15">Bugs We Fixed — Technical Deep Dive</a></li>
+    <li><a href="#s16">Interview Q&amp;A Cheat Sheet</a></li>
+  </ol>
+</div>
+
+<!-- ================================================================ S1 -->
+<div id="s1">
+<div class="section-header"><div class="num">01</div><h2>Project Overview — What, Why, How</h2></div>
+
+<div class="card">
+<h3>🎯 What is this project?</h3>
+<p>This is an <strong>autonomous software quality system</strong> that takes a GitHub repository URL as input and produces ready-to-merge pull requests that fix real bugs — with zero human effort in between.</p>
+<p>You give it: a GitHub repo URL + your API keys.<br>
+It gives you: actual GitHub PRs with working code fixes, confidence scores, and root-cause explanations.</p>
+</div>
+
+<div class="agent-grid">
+  <div class="agent-card">
+    <div class="agent-name">🤔 The Problem It Solves</div>
+    <div class="agent-body">
+      <ul>
+        <li>Manual code review is slow and misses cross-file bugs</li>
+        <li>Static tools (Bandit, ESLint) only find syntax-level issues</li>
+        <li>LLMs hallucinate fixes without verifying them</li>
+        <li>Nobody creates PRs automatically from bug reports</li>
+      </ul>
+    </div>
+  </div>
+  <div class="agent-card">
+    <div class="agent-name">✅ What Makes This Different</div>
+    <div class="agent-body">
+      <ul>
+        <li><strong>Cross-file reasoning</strong> — tracks how a bug in file A affects files B, C, D</li>
+        <li><strong>Verified fixes</strong> — patches pass AST + test + security gates before PR</li>
+        <li><strong>Surgical edits</strong> — never rewrites whole files; minimal diffs only</li>
+        <li><strong>Confidence score</strong> — every PR has a 0–100% trust rating</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+<h3>🔁 The 30-Second Elevator Pitch (memorise this for interviews)</h3>
+<p><em>"I built a 10-agent pipeline that clones a GitHub repo, builds a dependency knowledge graph using Python AST, then uses Claude AI in a two-stage triage-then-confirm approach to find real bugs. For each bug it traces the cross-file blast radius, generates a surgical SEARCH/REPLACE patch, validates it through 4 gates — AST syntax, tests, regression, security — scores confidence across 5 signals, and opens an actual GitHub pull request. The whole thing runs in about 2 minutes."</em></p>
+</div>
+</div>
+
+<!-- ================================================================ S2 -->
+<div id="s2">
+<div class="section-header"><div class="num">02</div><h2>High-Level Architecture</h2></div>
+
+<div class="diagram">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      STREAMLIT UI  (streamlit_app.py)                       │
+│  Sidebar: repo URL, API keys, GitHub token                                  │
+│  Main area: live phase stepper + agent feed + results tabs                  │
+└───────────────────────────┬─────────────────────────────────────────────────┘
+                            │  threading.Thread + queue.Queue (events)
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                ORCHESTRATOR  (backend/agents/orchestrator.py)               │
+│                                                                             │
+│  ① git clone repo → tmpdir                                                  │
+│                                                                             │
+│  PHASE 1 — DISCOVERY                                                        │
+│  ┌────────────────┐  ┌──────────────────┐  ┌────────────────────┐          │
+│  │  Repo Mapper   │  │ Dep. Analyzer    │  │  Static Analysis   │          │
+│  │  KnowledgeGraph│  │ pkg deps, circle │  │  Bandit/ESLint     │          │
+│  │  4 AST passes  │  │ imports          │  │  (optional)        │          │
+│  └───────┬────────┘  └──────────────────┘  └──────────┬─────────┘          │
+│          │                                             │                     │
+│          └──────────────────┬──────────────────────────┘                    │
+│                             ▼                                                │
+│                    ┌────────────────┐                                        │
+│                    │ LLM Bug Hunter │   Stage A: Haiku  → flag candidates    │
+│                    │                │   Stage B: Sonnet → confirm + fix hint │
+│                    └───────┬────────┘                                        │
+│                            │ list[Finding]                                   │
+│  PHASE 2 — INVESTIGATION   │                                                 │
+│                    ┌───────▼────────────────┐                               │
+│                    │  Bug Investigation     │  blast_radius(), data_flow()   │
+│                    │  Agent                 │  ChromaDB similar fixes        │
+│                    │                        │  LLM root-cause (if needed)    │
+│                    └───────┬────────────────┘                               │
+│                            │ enriched list[Finding]                          │
+│  PHASE 3 — PLANNING        │                                                 │
+│                    ┌───────▼────────────┐                                   │
+│                    │  Repair Planner    │  group by epicenter file           │
+│                    │                    │  order by dependency depth         │
+│                    └───────┬────────────┘                                   │
+│                            │ RepairPlan                                      │
+│  PHASE 4 — FIX + VALIDATE  │                                                 │
+│           ┌────────────────▼──────┐   ┌────────────────────────────┐       │
+│           │  Code Generator       │   │  Validation Agent           │       │
+│           │  SEARCH/REPLACE edits │──▶│  Gate 1: AST syntax         │       │
+│           │  cross-file capable   │   │  Gate 2: pytest             │       │
+│           └───────────────────────┘   │  Gate 3: regression suite   │       │
+│                                       └─────────────┬──────────────┘       │
+│                                                     │                        │
+│                                       ┌─────────────▼──────────────┐       │
+│                                       │  Security Verifier          │       │
+│                                       │  Bandit re-scan on patch    │       │
+│                                       └─────────────┬──────────────┘       │
+│  PHASE 5 — PUBLICATION                              │ ConfidenceScore        │
+│                                       ┌─────────────▼──────────────┐       │
+│                                       │  PR Author                  │       │
+│                                       │  branch → commit → push     │       │
+│                                       │  → GitHub API → PR URL      │       │
+│                                       └────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────┘
+         │                                              │
+         ▼                                              ▼
+  ┌──────────────┐                            ┌────────────────┐
+  │ Anthropic API│                            │  GitHub API    │
+  │(via Aerolink)│                            │ (PyGithub +    │
+  └──────────────┘                            │  git CLI)      │
+                                              └────────────────┘
+</div>
+
+<div class="card">
+<h3>🔑 Key Architectural Decisions — Know These Cold</h3>
+<table>
+  <tr><th>Decision</th><th>Choice Made</th><th>Why (say this in interview)</th></tr>
+  <tr><td>Frontend</td><td>Streamlit</td><td>Single-process app, no separate API server, fast to demo and iterate</td></tr>
+  <tr><td>Background LLM work</td><td>threading.Thread + queue.Queue</td><td>Streamlit's main thread must stay free to re-render; the queue streams events live to the UI</td></tr>
+  <tr><td>Graph library</td><td>NetworkX DiGraph</td><td>Built-in BFS/DFS for blast radius; nodes are files/functions/classes, edges are IMPORTS/CALLS/TESTS</td></tr>
+  <tr><td>Patch format</td><td>Anchored SEARCH/REPLACE</td><td>Minimal diffs, cannot rewrite entire file, atomic reject if anchor doesn't match exactly once</td></tr>
+  <tr><td>LLM tiering</td><td>Haiku triage + Sonnet confirm</td><td>~80% cost saving; Haiku flags candidates cheaply, Sonnet confirms with evidence and fix hint</td></tr>
+  <tr><td>Memory</td><td>ChromaDB vector store</td><td>Semantic similarity for past fixes; a cache hit raises confidence by 15%</td></tr>
+  <tr><td>Config</td><td>Pydantic BaseSettings</td><td>Type-safe, reads .env automatically, fails fast on missing required fields</td></tr>
+</table>
+</div>
+</div>
+
+<!-- ================================================================ S3 -->
+<div id="s3">
+<div class="section-header"><div class="num">03</div><h2>Tech Stack &amp; Dependencies</h2></div>
+
+<table>
+  <tr><th>Package</th><th>Purpose in this project</th></tr>
+  <tr><td><code>streamlit ≥1.35</code></td><td>Web UI — <code>st.empty()</code> for live updates, <code>st.session_state</code> for job persistence</td></tr>
+  <tr><td><code>anthropic 0.111.0</code></td><td>Claude API SDK — <code>AsyncAnthropic</code> for non-blocking LLM calls</td></tr>
+  <tr><td><code>httpx ≥0.28</code></td><td>HTTP client used by SDK; we subclass <code>AsyncHTTPTransport</code> to fix User-Agent</td></tr>
+  <tr><td><code>networkx ≥3.0</code></td><td>DiGraph for the knowledge graph; <code>simple_cycles()</code> for circular dependency detection</td></tr>
+  <tr><td><code>pydantic v2</code></td><td>All data models (Finding, PatchResult, PullRequest, etc.)</td></tr>
+  <tr><td><code>pydantic-settings v2</code></td><td>Settings class reads from .env with type validation</td></tr>
+  <tr><td><code>PyGithub ≥2.0</code></td><td>GitHub REST API — create PRs, branches</td></tr>
+  <tr><td><code>chromadb ≥0.5</code></td><td>Vector DB for semantic memory of past fixes</td></tr>
+  <tr><td><code>bandit ≥1.7</code></td><td>Python security scanner (validation gate 4)</td></tr>
+  <tr><td><code>pytest ≥8.0</code></td><td>Test runner for validation gate 2 &amp; 3</td></tr>
+  <tr><td><code>gitpython ≥3.1</code></td><td>Git operations: clone, branch, commit, push</td></tr>
+</table>
+</div>
+
+<!-- ================================================================ S4 -->
+<div id="s4">
+<div class="section-header"><div class="num">04</div><h2>Data Models — The Language of the System</h2></div>
+<p>Every piece of information flowing between agents is a Pydantic model in <code>backend/models.py</code>.</p>
+
+<div class="card">
+<h3>Finding — the fundamental unit</h3>
+<pre>Finding(
+  id          = "a3f9b2c1"   # 8-char UUID, stable across agents
+  issue_class = "functional_bug"  # or security_vulnerability|performance|code_quality
+  severity    = "high"        # critical > high > medium > low > info
+  title       = "SQL injection via unsanitized user input"
+  file_path   = "backend/utils/db.py"
+  line_number = 42
+  tool_source = "llm"         # who found it: llm | bandit | repo_mapper:ast
+
+  # Set by Bug Hunter Stage B (Sonnet confirm pass):
+  root_cause     = "Missing parameterization in execute()"
+  evidence       = "Line 42: cursor.execute(f'SELECT * WHERE id={uid}')"
+  suggested_fix  = "Use cursor.execute('SELECT... WHERE id=?', (uid,))"
+
+  # Set by Bug Investigation Agent:
+  blast_radius   = 3          # number of files affected if this file changes
+  impact_paths   = [["db.py","orders.py","api.py"]]  # HOW it propagates
+  related_tests  = ["tests/test_db.py"]
+  similar_past_fixes = [...]  # from ChromaDB memory
+)</pre>
+</div>
+
+<div class="agent-grid">
+  <div class="agent-card">
+    <div class="agent-name">PatchResult</div>
+    <div class="agent-body">
+      Output of Code Generation. <code>ok=True</code> means all SEARCH/REPLACE edits applied and sanity check passed (change ratio &lt; 60% of file).
+      Can contain multiple <code>FilePatch</code> objects for cross-file fixes.
+    </div>
+  </div>
+  <div class="agent-card">
+    <div class="agent-name">ValidationResult</div>
+    <div class="agent-body">
+      4 gates: <code>gate_1_ast_valid</code>, <code>gate_2_tests_passed</code>, <code>gate_3_no_regressions</code>, <code>gate_4_security_clean</code>.
+      Also tracks <code>tests_available</code> — if no test suite, confidence is capped at 60%.
+    </div>
+  </div>
+  <div class="agent-card">
+    <div class="agent-name">ConfidenceScore</div>
+    <div class="agent-body">
+      5 weighted signals summed to 0–1. Score ≥ 0.70 → auto-merge eligible.
+      Score &lt; 0.70 OR <code>is_critical_path=True</code> → PR is drafted (needs human approval).
+    </div>
+  </div>
+  <div class="agent-card">
+    <div class="agent-name">PipelineJob</div>
+    <div class="agent-body">
+      The master object passed through the entire orchestrator. Contains all events, findings, repair plan, validation results, and pull requests. Stored in <code>st.session_state["last_job"]</code> for UI re-rendering.
+    </div>
+  </div>
+</div>
+
+<div class="card">
+<h3>Pipeline Status Flow</h3>
+<div class="diagram">PENDING → CLONING → PHASE_1_DISCOVERY → PHASE_2_INVESTIGATION
+        → PHASE_3_PLANNING → PHASE_4_FIX_VALIDATE → PHASE_5_PUBLICATION
+        → COMPLETED   (or FAILED / CANCELLED)</div>
+</div>
+</div>
+
+<!-- ================================================================ S5 -->
+<div id="s5">
+<div class="section-header"><div class="num">05</div><h2>Knowledge Graph — The Core Engine</h2></div>
+
+<p>The <strong>KnowledgeGraph</strong> (<code>backend/knowledge_graph.py</code>) is the most important component in the project. It is a <strong>NetworkX DiGraph</strong> that represents the entire repository as a graph of files, functions, classes, API endpoints, and database models, connected by typed edges.</p>
+
+<div class="card">
+<h3>Node Types</h3>
+<table>
+  <tr><th>Node Type</th><th>Example ID</th><th>What it represents</th></tr>
+  <tr><td><code>File</code></td><td><code>backend/utils/db.py</code></td><td>Every source file in the repo</td></tr>
+  <tr><td><code>Function</code></td><td><code>backend/utils/db.py::execute_query</code></td><td>Every function/method defined in Python files</td></tr>
+  <tr><td><code>Class</code></td><td><code>backend/utils/db.py::Database</code></td><td>Every class</td></tr>
+  <tr><td><code>ServiceBoundary</code></td><td><code>backend</code></td><td>Top-level directories (domain grouping)</td></tr>
+  <tr><td><code>APIEndpoint</code></td><td><code>API:/users:GET</code></td><td>FastAPI/Flask/Django routes</td></tr>
+  <tr><td><code>DBModel</code></td><td><code>DB:User</code></td><td>ORM models queried in code</td></tr>
+  <tr><td><code>ConfigVar</code></td><td><code>CFG:DATABASE_URL</code></td><td>os.environ.get() keys</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Edge Types</h3>
+<table>
+  <tr><th>Edge Type</th><th>Direction</th><th>Meaning</th></tr>
+  <tr><td><code>IMPORTS</code></td><td>consumer → dependency</td><td>File A imports module from File B</td></tr>
+  <tr><td><code>CALLS</code></td><td>caller function → callee function</td><td>Function A calls function B</td></tr>
+  <tr><td><code>TESTS</code></td><td>test file → production file</td><td>test_db.py tests db.py</td></tr>
+  <tr><td><code>DEFINES</code></td><td>file → function/class</td><td>File owns this symbol</td></tr>
+  <tr><td><code>BELONGS_TO</code></td><td>file → service boundary</td><td>File is in this top-level directory</td></tr>
+  <tr><td><code>SERVES_API</code></td><td>file → API endpoint</td><td>File exposes this route</td></tr>
+  <tr><td><code>QUERIES_DB</code></td><td>function → DB model</td><td>Function queries this ORM model</td></tr>
+</table>
+</div>
+
+<h3 class="sub">The 4 Build Passes</h3>
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">1</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Pass 1 — Structure (os.walk)</h4>
+      <p>Walks every directory. Creates <code>File</code> nodes and <code>ServiceBoundary</code> nodes. Records language (by extension), file size, which boundary the file belongs to. Skips: <code>.git</code>, <code>venv</code>, <code>node_modules</code>, <code>__pycache__</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">2</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Pass 2 — AST (Python + C/C++)</h4>
+      <p>For Python files: <code>ast.parse()</code> → indexes all functions, classes, imports, function calls. Syntax errors are recorded as findings (not silently skipped). Builds <code>_file_by_module</code> index so <code>import utils.db</code> maps to the real file node. For C/C++: regex extracts <code>#include "local.h"</code> edges. Adds <code>TESTS</code> edges for files named <code>test_*.py</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">3</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Pass 3 — Framework</h4>
+      <p>Regex patterns extract: FastAPI routes (<code>@app.get("/path")</code>), Flask routes (<code>@app.route</code>), Django URLs (<code>path("url")</code>), ORM queries (<code>Model.objects.filter()</code>), config variable usage (<code>os.environ.get("KEY")</code>).</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">4</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Pass 4 — Dynamic Confidence</h4>
+      <p>Marks edges with confidence: CALLS/QUERIES_DB edges that were resolved via imports get <code>confidence="high"</code>; unresolved dynamic calls get <code>confidence="low"</code>.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+<h3>🔥 Blast Radius — The Key Algorithm</h3>
+<p><strong>Question:</strong> "If I change <code>db.py</code>, which other files could break?"</p>
+<p>File dependency edges point from <strong>consumer → dependency</strong>. Impact travels in the <strong>reverse direction</strong>: if <code>orders.py</code> imports <code>db.py</code>, then a change in <code>db.py</code> can break <code>orders.py</code>.</p>
+<div class="diagram">db.py (changed)
+    ↑ IMPORTS  orders.py   (direct dependent — affected)
+    ↑ IMPORTS  payments.py (direct dependent — affected)
+              ↑ IMPORTS  api.py (transitive dependent — affected via 2 hops)
+
+blast_radius("db.py", hops=2) → {"affected_files": ["orders.py","payments.py","api.py"],
+                                   "file_count": 3, "category": "narrow",
+                                   "related_tests": ["tests/test_db.py"]}</div>
+
+<h4>Category thresholds:</h4>
+<ul>
+  <li><span class="pill pill-green">narrow</span> ≤ 2 files affected</li>
+  <li><span class="pill pill-yellow">moderate</span> 3–8 files affected</li>
+  <li><span class="pill pill-red">wide</span> &gt; 8 files — careful review advised</li>
+</ul>
+</div>
+
+<div class="callout callout-blue">
+<strong>Interview tip:</strong> "The blast radius tells us the SCOPE of a bug's impact. A security vulnerability in a utility function imported by 20 files has a wide blast radius and gets flagged as CRITICAL PATH — it requires human approval before merging."
+</div>
+</div>
+
+<!-- ================================================================ S6 -->
+<div id="s6">
+<div class="section-header"><div class="num">06</div><h2>The 10 Agents — Deep Dive</h2></div>
+
+<p>The orchestrator runs all 10 agents in sequence. Each agent emits <code>PipelineEvent</code> objects via a callback, which appear live in the Streamlit feed.</p>
+
+<!-- Agent 1 -->
+<div class="agent-card full" style="border-left-color:#3b82f6; margin:16px 0;">
+  <div class="agent-num">AGENT 01</div>
+  <div class="agent-name">🗺️ Repo Mapper</div>
+  <div class="agent-phase">phase_1_discovery</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Builds the KnowledgeGraph (all 4 passes). Also converts <em>actual Python syntax errors</em> discovered during AST parsing into Finding objects (severity=HIGH). Detects circular import chains using <code>networkx.simple_cycles()</code>.</p>
+    <p><strong>Input:</strong> repo path on disk, repo name<br>
+    <strong>Output:</strong> <code>KnowledgeGraph</code> object + <code>list[Finding]</code> (syntax errors, circular deps)</p>
+    <p><strong>Why syntax errors are findings:</strong> <code>ast.parse()</code> will fail if a file has a syntax error. Rather than crashing, the error is captured with exact line+message and added as a HIGH severity functional_bug. The file is then excluded from further AST analysis (but is still in the graph as a node).</p>
+  </div>
+</div>
+
+<!-- Agent 2 -->
+<div class="agent-card full" style="border-left-color:#f59e0b; margin:16px 0;">
+  <div class="agent-num">AGENT 02</div>
+  <div class="agent-name">📦 Dependency Analyzer</div>
+  <div class="agent-phase">phase_1_discovery</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Analyzes <em>external</em> dependencies (pip packages, npm modules). Checks for outdated/vulnerable packages. Enriches the graph with package dependency information.</p>
+    <p><strong>Input:</strong> repo path, KnowledgeGraph<br>
+    <strong>Output:</strong> Additional findings about vulnerable/outdated dependencies</p>
+  </div>
+</div>
+
+<!-- Agent 3 -->
+<div class="agent-card full" style="border-left-color:#14b8a6; margin:16px 0;">
+  <div class="agent-num">AGENT 03</div>
+  <div class="agent-name">🔬 Static Analysis</div>
+  <div class="agent-phase">phase_1_discovery</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Runs traditional static analysis tools if available: Bandit (Python security), ESLint (JavaScript). Converts tool output into Finding objects.</p>
+    <p><strong>Windows note:</strong> Bandit and ESLint are often not installed. The agent checks with <code>shutil.which()</code> and gracefully returns an empty list if tools are missing. This is why the <strong>LLM Bug Hunter exists</strong> — it's the fallback when static tools aren't available.</p>
+  </div>
+</div>
+
+<!-- Agent 4 -->
+<div class="agent-card full" style="border-left-color:#ef4444; margin:16px 0;">
+  <div class="agent-num">AGENT 04</div>
+  <div class="agent-name">🔍 LLM Bug Hunter</div>
+  <div class="agent-phase">phase_1_discovery</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Finds REAL bugs using a two-stage LLM pipeline. This is the most important discovery agent — it's what actually finds functional/security/performance bugs that static tools miss.</p>
+
+    <h4>Stage A — Triage with Haiku (cheap)</h4>
+    <p>For each source file, sends the numbered source code + graph context (what imports this file, what it imports) to <code>claude-haiku</code>. Asks it to return a JSON array of <em>candidate</em> issues: class, severity, line number, and a one-sentence "why".</p>
+    <pre>POST to Haiku: "File: db.py\n{graph_context}\n{numbered_code}\n
+List ONLY genuine defects as JSON..."
+← [{"class":"security_vulnerability","severity":"high","line":42,
+    "title":"SQL injection","why":"f-string in execute()"}]</pre>
+
+    <h4>Stage B — Confirm with Sonnet (strong)</h4>
+    <p>For files that had candidates, sends the full file + candidate list + related file content (dependencies/dependents from graph) to <code>claude-sonnet</code>. Asks it to <em>verify each candidate</em> and discard false positives. For real bugs, it must provide: description, evidence, root_cause, suggested_fix.</p>
+    <pre>POST to Sonnet: "File: db.py\n{candidate_list}\n{related_files}\n
+For EACH candidate, decide if it is REAL. Return confirmed only..."
+← [{"class":"security_vulnerability","severity":"high","line":42,
+    "evidence":"cursor.execute(f'SELECT ... {uid}') at line 42",
+    "root_cause":"No parameterization; uid from user input is interpolated directly",
+    "suggested_fix":"cursor.execute('SELECT... WHERE id=?', (uid,))"}]</pre>
+
+    <h4>File selection priority:</h4>
+    <p>Files are ranked by <strong>graph in-degree</strong> (how many other files import this file) + size. Most-connected files are analyzed first because bugs there have the widest blast radius.</p>
+
+    <h4>Why two stages?</h4>
+    <div class="callout callout-blue">
+    Haiku costs ~$0.001/file for fast triage. Sonnet costs ~$0.015/file for deep verification. By using Haiku first, we only send files with real candidates to Sonnet — saving ~80% of LLM cost on a typical repo.
+    </div>
+  </div>
+</div>
+
+<!-- Agent 5 -->
+<div class="agent-card full" style="border-left-color:#a855f7; margin:16px 0;">
+  <div class="agent-num">AGENT 05</div>
+  <div class="agent-name">🧭 Bug Investigation</div>
+  <div class="agent-phase">phase_2_investigation</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> For each confirmed finding, enriches it with cross-file impact data from the knowledge graph and searches ChromaDB for similar past fixes.</p>
+
+    <h4>Steps per finding:</h4>
+    <ol>
+      <li><code>kg.analyze_change(file_path)</code> → direct/transitive dependents, impact paths</li>
+      <li><code>kg.blast_radius(file_path)</code> → file count, service boundaries crossed, related tests</li>
+      <li><code>kg.trace_data_flow(file_path, line_number)</code> → upstream callers, downstream callees</li>
+      <li>ChromaDB: query for semantically similar past fixes in this repo</li>
+      <li>If no <code>root_cause</code> yet (Sonnet Stage B didn't set one): call LLM to generate root cause using all the graph context above</li>
+    </ol>
+
+    <p><strong>Key output fields set on Finding:</strong> <code>blast_radius</code>, <code>affected_files</code>, <code>impact_paths</code>, <code>direct_dependents</code>, <code>related_tests</code>, <code>affected_modules</code>, <code>similar_past_fixes</code></p>
+  </div>
+</div>
+
+<!-- Agent 6 -->
+<div class="agent-card full" style="border-left-color:#06b6d4; margin:16px 0;">
+  <div class="agent-num">AGENT 06</div>
+  <div class="agent-name">📝 Repair Planner</div>
+  <div class="agent-phase">phase_3_planning</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Takes the list of enriched findings and produces a <code>RepairPlan</code> — a dependency-ordered list of <code>RepairPlanItem</code>s, one per epicenter file.</p>
+
+    <h4>Grouping logic:</h4>
+    <p>Multiple findings in the same file → one RepairPlanItem. This means one code-gen call fixes all bugs in a file together (fewer LLM calls, no conflicting edits).</p>
+
+    <h4>Ordering logic:</h4>
+    <p>Files that are dependencies of other files must be fixed <em>first</em>. Example: if <code>db.py</code> imports <code>utils.py</code> and both have bugs, fix <code>utils.py</code> first — its fix may change the interface that <code>db.py</code> uses. This ordering uses topological sort on the dependency graph.</p>
+
+    <h4>Prioritization:</h4>
+    <ul>
+      <li>Security vulnerabilities → first (highest risk)</li>
+      <li>Critical/high severity before medium/low</li>
+      <li>Wide blast radius before narrow</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Agent 7 -->
+<div class="agent-card full" style="border-left-color:#22c55e; margin:16px 0;">
+  <div class="agent-num">AGENT 07</div>
+  <div class="agent-name">🩹 Code Generation</div>
+  <div class="agent-phase">phase_4_fix_validate</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Generates the actual code patch for a file using <code>claude-sonnet</code> with a strict SEARCH/REPLACE format. Can produce cross-file patches (fixing the root cause in a dependency file, not just the symptom in the caller).</p>
+
+    <h4>What gets sent to the LLM:</h4>
+    <ol>
+      <li>All findings for this epicenter file (issue class, severity, line, description, root_cause, suggested_fix)</li>
+      <li>The full source of the primary file (with line numbers)</li>
+      <li>Related files from the knowledge graph (dependencies + dependents, up to 20KB each)</li>
+      <li>A strict system prompt (<code>_EDIT_INSTRUCTIONS</code>) explaining the SEARCH/REPLACE format</li>
+    </ol>
+
+    <h4>System prompt key rules (memorise these):</h4>
+    <ul>
+      <li>Every block MUST have a <code>### FILE: path</code> prefix</li>
+      <li>The SEARCH text must match EXACTLY (verbatim including indentation)</li>
+      <li>SEARCH must be unique — if it matches in 2 places, the edit is rejected</li>
+      <li>Fix at root cause if possible — edit a dependency file if that's where the bug lives</li>
+      <li>Never delete or weaken existing test assertions</li>
+      <li>Output NOTHING except <code>### FILE:</code> lines and the SEARCH/REPLACE blocks</li>
+    </ul>
+
+    <h4>Retry logic:</h4>
+    <p>If the patch fails (SEARCH not found, sanity check fails), <code>regenerate_with_error()</code> is called with the error message fed back to the LLM so it can correct itself. Up to <code>validation_max_retries=3</code> attempts.</p>
+  </div>
+</div>
+
+<!-- Agent 8 -->
+<div class="agent-card full" style="border-left-color:#10b981; margin:16px 0;">
+  <div class="agent-num">AGENT 08</div>
+  <div class="agent-name">✅ Validation Agent</div>
+  <div class="agent-phase">phase_4_fix_validate</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Validates a patch by applying it to a <em>sandbox copy</em> of the repo and running 4 sequential gates. The real working tree is untouched until the PR Author writes the final commit.</p>
+
+    <h4>Gate 1 — AST Syntax</h4>
+    <p>Every changed .py file is run through <code>ast.parse()</code>. If any file has a syntax error, the patch is rejected immediately. C/C++ files run through <code>gcc -fsyntax-only</code> if a compiler is available.</p>
+
+    <h4>Gate 2 — Tests + Bandit</h4>
+    <p>Finds test files for the changed files (e.g. <code>test_db.py</code> for <code>db.py</code>) and runs <code>pytest -x</code> scoped to those files. Also runs Bandit on all changed Python files if installed. Passes if both succeed (or if tests/bandit are unavailable — those just don't contribute to confidence).</p>
+
+    <h4>Gate 3 — Regression Suite</h4>
+    <p>If <code>validation_run_full_suite=True</code> (default), runs the entire test suite to check for regressions anywhere. Otherwise runs tests for all files in the blast radius.</p>
+
+    <h4>Gate 4 — Security</h4>
+    <p>Handled by the separate Security Verifier agent (see below).</p>
+
+    <div class="callout callout-yellow">
+    <strong>No test suite?</strong> If the repo has no tests, gates 2 &amp; 3 are effectively skipped and <code>tests_available=False</code>. The patch is still published (gate 1 AST must pass), but the confidence score is capped at 60% — which forces human approval.
+    </div>
+  </div>
+</div>
+
+<!-- Agent 9 -->
+<div class="agent-card full" style="border-left-color:#f43f5e; margin:16px 0;">
+  <div class="agent-num">AGENT 09</div>
+  <div class="agent-name">🔐 Security Verification</div>
+  <div class="agent-phase">phase_4_fix_validate</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Runs Bandit specifically on the patched files (in the sandbox) to check that the fix didn't introduce new security issues. Sets <code>gate_4_security_clean</code> on the ValidationResult. If Bandit isn't installed, the gate is marked unavailable (not failed).</p>
+    <p>This is the only agent that can <em>block</em> a fix that passed tests — a patch that resolves a functional bug but introduces a security vulnerability is rejected here.</p>
+  </div>
+</div>
+
+<!-- Agent 10 -->
+<div class="agent-card full" style="border-left-color:#6366f1; margin:16px 0;">
+  <div class="agent-num">AGENT 10</div>
+  <div class="agent-name">🚀 PR Author</div>
+  <div class="agent-phase">phase_5_publication</div>
+  <div class="agent-body">
+    <p><strong>What it does:</strong> Creates the GitHub pull request. This is the only agent that modifies the real working tree and interacts with GitHub.</p>
+
+    <h4>Steps in order:</h4>
+    <ol>
+      <li>Compute ConfidenceScore from ValidationResult (5-signal weighted sum)</li>
+      <li>Detect if file is critical path (auth, crypto, password patterns)</li>
+      <li>Decide: auto-merge eligible OR requires approval</li>
+      <li><code>create_branch()</code> → new branch from base (e.g. <code>fix/a3f9-20240816-142301</code>)</li>
+      <li><code>_apply_patch_to_worktree()</code> → write new file content to disk</li>
+      <li><code>commit_changes()</code> → <code>git add -A && git commit -m "title"</code></li>
+      <li><code>push_branch()</code> → inject GitHub token into remote URL → <code>git push</code></li>
+      <li><code>create_pull_request()</code> → GitHub API → returns PR URL</li>
+      <li><code>restore_worktree()</code> → checkout back to base branch regardless of success/failure</li>
+    </ol>
+
+    <h4>LLM-generated PR description includes:</h4>
+    <ul>
+      <li>2–3 sentence professional summary (via Haiku triage call)</li>
+      <li>Issues addressed table with root causes</li>
+      <li>Confidence score breakdown table</li>
+      <li>Unified diff in a code block</li>
+      <li>Auto-merge eligible OR 🔒 Human approval required badge</li>
+    </ul>
+
+    <div class="callout callout-green">
+    <strong>Key safety design:</strong> <code>restore_worktree()</code> runs in a <code>finally</code> block, so even if the push fails, the local repo is always put back to the base branch. This prevents state leaking between consecutive PRs.
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================ S7 -->
+<div id="s7">
+<div class="section-header"><div class="num">07</div><h2>Surgical Patcher — SEARCH/REPLACE Mechanics</h2></div>
+
+<p>The patcher (<code>backend/utils/patcher.py</code>) is what makes the system <strong>reliable</strong>. Instead of asking the LLM to regenerate entire files (which leads to hallucinations and huge diffs), we force it to output <strong>anchored edits</strong> — each edit must exactly match a unique snippet in the existing file.</p>
+
+<div class="card">
+<h3>The Format</h3>
+<pre>### FILE: backend/utils/db.py
+<<<<<<< SEARCH
+def execute_query(sql, params):
+    cursor.execute(f"SELECT * FROM users WHERE id={params['id']}")
+    return cursor.fetchall()
+=======
+def execute_query(sql, params):
+    cursor.execute("SELECT * FROM users WHERE id=?", (params['id'],))
+    return cursor.fetchall()
+>>>>>>> REPLACE</pre>
+
+<p>The LLM can output multiple blocks in one response. Each block can target a different file (for cross-file root-cause fixes).</p>
+</div>
+
+<div class="card">
+<h3>🔒 Safety Rules (enforced in <code>apply_edits()</code>)</h3>
+<table>
+  <tr><th>Rule</th><th>Why</th><th>What happens if violated</th></tr>
+  <tr>
+    <td>SEARCH must match exactly once</td>
+    <td>Prevents ambiguity — we need to know WHICH occurrence to replace</td>
+    <td>Edit is rejected with error: "SEARCH text is ambiguous — matches N places"</td>
+  </tr>
+  <tr>
+    <td>SEARCH must exist in file</td>
+    <td>LLM might hallucinate the current code</td>
+    <td>Edit is rejected: "SEARCH text not found"</td>
+  </tr>
+  <tr>
+    <td>Changed lines ≤ 60% of file</td>
+    <td>Prevents whole-file rewrite mode (LLM failure case)</td>
+    <td>Entire patch rejected: "changes 73% of file — likely full-file rewrite"</td>
+  </tr>
+  <tr>
+    <td>At least one edit must apply</td>
+    <td>Empty patches are useless</td>
+    <td>PatchResult.ok = False</td>
+  </tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Flexible Matching</h3>
+<p>If exact match fails, the patcher tries <strong>whitespace-flexible matching</strong> — each line is right-stripped before comparison. This handles cases where the LLM got trailing spaces slightly wrong but the anchor is otherwise correct. The flexible matcher still requires a unique match.</p>
+</div>
+
+<div class="card">
+<h3>Cross-File Patches</h3>
+<p>The Code Generator can edit multiple files in one response via <code>### FILE: path</code> markers:</p>
+<pre>### FILE: backend/utils/db.py
+<<<<<<< SEARCH
+...fix symptom...
+>>>>>>> REPLACE
+
+### FILE: backend/utils/auth.py
+<<<<<<< SEARCH
+...fix root cause...
+>>>>>>> REPLACE</pre>
+<p>The patcher groups edits by file using <code>parse_file_edits()</code>, then applies them independently. The final <code>PatchResult</code> contains a <code>FilePatch</code> for each modified file.</p>
+</div>
+
+<div class="callout callout-blue">
+<strong>Interview answer:</strong> "We use anchored SEARCH/REPLACE instead of whole-file generation because LLMs hallucinate when regenerating large files. By forcing the LLM to copy an exact snippet from the existing code, we guarantee the edit targets the right location. If the LLM hallucinates the current code, the SEARCH won't match and the edit is rejected atomically — no partial corruption."
+</div>
+</div>
+
+<!-- ================================================================ S8 -->
+<div id="s8">
+<div class="section-header"><div class="num">08</div><h2>Confidence Scoring (5-Signal System)</h2></div>
+
+<p>Every pull request gets a <strong>ConfidenceScore</strong> computed from 5 weighted signals. The score determines whether the PR can auto-merge or needs human review.</p>
+
+<div class="card">
+<h3>The 5 Signals (weights sum to 100%)</h3>
+<table class="conf-table">
+  <tr><th>Signal</th><th>Weight</th><th>How to earn it</th></tr>
+  <tr>
+    <td><strong>Tests Passed</strong></td>
+    <td>40%</td>
+    <td>ValidationResult.gate_2_tests_passed = True AND tests_available = True</td>
+  </tr>
+  <tr>
+    <td><strong>Security Clean</strong></td>
+    <td>25%</td>
+    <td>Bandit finds no HIGH/CRITICAL issues in the patched files</td>
+  </tr>
+  <tr>
+    <td><strong>AST Valid</strong></td>
+    <td>10%</td>
+    <td>All changed files parse without syntax errors</td>
+  </tr>
+  <tr>
+    <td><strong>Cache Hit</strong></td>
+    <td>15%</td>
+    <td>ChromaDB returned a similar validated past fix (similarity ≥ 0.85)</td>
+  </tr>
+  <tr>
+    <td><strong>Fix Order</strong></td>
+    <td>10%</td>
+    <td>This is the first fix in the repair plan (lowest dependency risk)</td>
+  </tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Example Calculation</h3>
+<div class="signal-bar">
+  <div class="signal-label">Tests</div>
+  <div class="signal-track"><div class="signal-fill" style="width:100%;background:#4ade80;"></div></div>
+  <div class="signal-pct">+40%</div>
+</div>
+<div class="signal-bar">
+  <div class="signal-label">Security</div>
+  <div class="signal-track"><div class="signal-fill" style="width:100%;background:#4ade80;"></div></div>
+  <div class="signal-pct">+25%</div>
+</div>
+<div class="signal-bar">
+  <div class="signal-label">AST</div>
+  <div class="signal-track"><div class="signal-fill" style="width:100%;background:#4ade80;"></div></div>
+  <div class="signal-pct">+10%</div>
+</div>
+<div class="signal-bar">
+  <div class="signal-label">Cache Hit</div>
+  <div class="signal-track"><div class="signal-fill" style="width:0%;background:#6b7280;"></div></div>
+  <div class="signal-pct" style="color:#6b7280;">0%</div>
+</div>
+<div class="signal-bar">
+  <div class="signal-label">Fix Order</div>
+  <div class="signal-track"><div class="signal-fill" style="width:100%;background:#4ade80;"></div></div>
+  <div class="signal-pct">+10%</div>
+</div>
+<p style="margin-top:12px;"><strong>Total: 85%</strong> <span class="pill pill-green">✓ AUTO-MERGE ELIGIBLE</span></p>
+</div>
+
+<div class="card">
+<h3>Decision Thresholds</h3>
+<table>
+  <tr><th>Score Range</th><th>Action</th></tr>
+  <tr><td>≥ 70%</td><td><span class="pill pill-green">Auto-merge eligible</span> — PR is created as ready to merge</td></tr>
+  <tr><td>&lt; 70%</td><td><span class="pill pill-yellow">Requires approval</span> — PR is created as DRAFT</td></tr>
+  <tr><td>Critical path detected</td><td><span class="pill pill-red">Requires approval</span> — even if score ≥ 70%</td></tr>
+  <tr><td>No test suite</td><td><span class="pill pill-yellow">Capped at 60%</span> — always requires approval</td></tr>
+</table>
+</div>
+
+<div class="callout callout-yellow">
+<strong>Critical path detection:</strong> Files matching patterns like <code>.*auth.*</code>, <code>.*crypto.*</code>, <code>.*password.*</code> OR functions named <code>.*authenticate.*</code>, <code>.*encrypt.*</code> are flagged as critical. These always need human review regardless of score.
+</div>
+</div>
+
+<!-- ================================================================ S9 -->
+<div id="s9">
+<div class="section-header"><div class="num">09</div><h2>ChromaDB Memory Layer</h2></div>
+
+<p>The system has a <strong>semantic memory</strong> of past validated fixes stored in ChromaDB (<code>backend/utils/chroma_memory.py</code>). When investigating a bug, it searches for similar past fixes and uses them to boost confidence.</p>
+
+<div class="card">
+<h3>What Gets Stored</h3>
+<p>After a fix passes all 4 validation gates AND the PR is successfully created, <code>RepositoryMemory.store_fix()</code> is called with:</p>
+<ul>
+  <li><code>bug_type</code> — the issue class (functional_bug, security_vulnerability, etc.)</li>
+  <li><code>root_cause</code> — why the bug existed</li>
+  <li><code>fix_strategy</code> — what was changed to fix it</li>
+  <li><code>affected_file</code> — the epicenter file</li>
+  <li><code>confidence_score</code> — the final confidence</li>
+  <li><code>validation_summary</code> — which gates passed</li>
+  <li><code>repo_key</code> — the repository name (scopes memory per repo)</li>
+</ul>
+
+<p>The embedding text sent to ChromaDB: <code>"Issue type: {bug_type}. Root cause: {root_cause}. Validated fix: {fix_strategy}"</code></p>
+</div>
+
+<div class="card">
+<h3>Document ID (deduplication)</h3>
+<p>Each fix gets a stable ID: <code>sha256(repo_key | bug_type | file | root_cause)[:24]</code>. This means if the same bug is fixed again (e.g. you re-run the pipeline), the memory is <em>updated</em> (upsert), not duplicated.</p>
+</div>
+
+<div class="card">
+<h3>Query During Investigation</h3>
+<p>Bug Investigation Agent calls <code>query_similar(bug_type, code_snippet, repo_key)</code>. ChromaDB returns the top 3 most similar past fixes (cosine similarity ≥ 0.85). If any match, they're attached to <code>Finding.similar_past_fixes</code> and the confidence scorer awards +15%.</p>
+</div>
+
+<div class="callout callout-blue">
+<strong>Why this matters:</strong> If you fix a SQL injection bug in <code>db.py</code>, then later discover a similar SQL injection in <code>api.py</code>, the memory layer will surface the <code>db.py</code> fix as a reference. The Code Generator sees it in the prompt context ("here's a similar fix that worked before") and the confidence score gets a boost because you're repeating a known-good pattern.
+</div>
+
+<div class="callout callout-yellow">
+<strong>Graceful degradation:</strong> ChromaDB imports numpy, which can fail on Windows with locked-down security policies. If the import fails, <code>RepositoryMemory.__init__()</code> sets <code>self.collection = None</code> and all store/query methods become no-ops. The pipeline runs normally without memory — it just can't earn the cache-hit signal.
+</div>
+</div>
+
+<!-- ================================================================ S10 -->
+<div id="s10">
+<div class="section-header"><div class="num">10</div><h2>LLM Client — Tiered Models + Aerolink Proxy</h2></div>
+
+<p>The <code>LLMClient</code> (<code>backend/utils/llm_client.py</code>) wraps the Anthropic SDK with retry logic and tiered model selection.</p>
+
+<div class="card">
+<h3>Model Tiers</h3>
+<table>
+  <tr><th>Tier</th><th>Model (configurable)</th><th>Used for</th><th>Cost per 1M tokens</th></tr>
+  <tr>
+    <td><code>haiku</code></td>
+    <td><code>claude-haiku-4-5-20251001</code></td>
+    <td>Triage, JSON extraction, PR summaries</td>
+    <td>~$0.40 input / $2.00 output</td>
+  </tr>
+  <tr>
+    <td><code>sonnet</code></td>
+    <td><code>claude-sonnet-4-6</code></td>
+    <td>Bug confirmation, root-cause analysis, code generation</td>
+    <td>~$3.00 input / $15.00 output</td>
+  </tr>
+</table>
+<p class="muted">Actual pricing depends on the Anthropic API tier or proxy. Aerolink uses credit-based pricing.</p>
+</div>
+
+<div class="card">
+<h3>Retry Logic</h3>
+<p>Exponential backoff with jitter: <code>delay = base_delay * (2 ** attempt) + random(0, 1)</code>. Default: 4 retries, 1-second base delay.</p>
+
+<h4>Non-retryable errors (fail fast):</h4>
+<ul>
+  <li><code>BadRequestError</code> (400) — malformed request</li>
+  <li><code>AuthenticationError</code> (401) — bad API key</li>
+  <li><code>PermissionDeniedError</code> (403) — blocked by proxy</li>
+  <li><code>NotFoundError</code> (404) — bad model name</li>
+</ul>
+
+<h4>Retryable errors:</h4>
+<ul>
+  <li>Rate limits (429)</li>
+  <li>Overloaded (529)</li>
+  <li>Timeouts</li>
+  <li>Network errors</li>
+</ul>
+</div>
+
+<div class="card">
+<h3>🔧 The Aerolink User-Agent Fix</h3>
+<p>This project uses <strong>Aerolink</strong> as an Anthropic-compatible proxy (cheaper credits). Aerolink's WAF blocks any request whose <code>User-Agent</code> header contains <code>"Anthropic/Python"</code>.</p>
+
+<p><strong>Problem:</strong> The Anthropic SDK (<code>anthropic 0.111.0</code>) always prepends its own identifier to the User-Agent, producing headers like:</p>
+<pre>User-Agent: Anthropic/Python 0.111.0, python-httpx/0.28.1</pre>
+
+<p>Setting <code>default_headers={"user-agent": "..."}</code> doesn't work — the SDK <em>concatenates</em> its UA with yours.</p>
+
+<p><strong>Solution:</strong> We subclass <code>httpx.AsyncHTTPTransport</code> and override <code>handle_async_request()</code> to replace the header at the lowest layer:</p>
+<pre>class _StripAnthropicUATransport(httpx.AsyncHTTPTransport):
+    async def handle_async_request(self, request: httpx.Request):
+        request.headers["user-agent"] = "python-httpx/0.28.1"
+        return await super().handle_async_request(request)</pre>
+
+<p>Then pass this transport when creating the client:</p>
+<pre>self.client = anthropic.AsyncAnthropic(
+    api_key=settings.anthropic_api_key,
+    base_url=settings.anthropic_base_url,
+    http_client=httpx.AsyncClient(transport=_StripAnthropicUATransport())
+)</pre>
+</div>
+
+<div class="callout callout-green">
+<strong>Interview tip:</strong> "We ran into an issue where Aerolink's firewall blocked the Anthropic SDK's default User-Agent. I traced the issue through the SDK source, found that it concatenates UA headers, and solved it by subclassing httpx's transport layer to replace the header before it hits the wire. This demonstrates debugging third-party SDK internals and working at the HTTP transport level."
+</div>
+</div>
+
+<!-- ================================================================ S11 -->
+<div id="s11">
+<div class="section-header"><div class="num">11</div><h2>GitHub Integration — Branches, Commits &amp; PRs</h2></div>
+
+<p>The <code>GitHubClient</code> (<code>backend/utils/github_client.py</code>) handles all GitHub operations. It combines the <code>PyGithub</code> library (for REST API) with direct <code>git</code> CLI calls (for clone/branch/push).</p>
+
+<div class="card">
+<h3>Key Methods</h3>
+<table>
+  <tr><th>Method</th><th>What it does</th></tr>
+  <tr><td><code>clone_repo(url, dest, branch)</code></td><td>Shallow git clone (depth=1) to a local temp directory</td></tr>
+  <tr><td><code>create_branch(repo_path, branch, base)</code></td><td><code>git checkout -b new_branch base_branch</code></td></tr>
+  <tr><td><code>commit_changes(repo_path, message)</code></td><td><code>git add -A && git commit -m "message\n\nCo-Authored-By: ..."</code></td></tr>
+  <tr><td><code>push_branch(repo_path, branch)</code></td><td>Injects token into remote URL, then <code>git push -u origin branch</code></td></tr>
+  <tr><td><code>create_pull_request(...)</code></td><td>PyGithub: <code>repo.create_pull()</code> with title, body, head, base, draft flag</td></tr>
+  <tr><td><code>restore_worktree(repo_path, base)</code></td><td><code>git reset --hard && git checkout base</code> (cleanup after PR)</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>🔑 Token Injection for Push</h3>
+<p><strong>Problem:</strong> Pydantic Settings reads <code>.env</code> at import time (when the module loads). But in Streamlit, the user enters their GitHub token in the sidebar <em>after</em> import — so <code>settings.github_token</code> is always <code>None</code>.</p>
+
+<p><strong>Solution 1 — Dynamic token reading:</strong></p>
+<pre>def _token() -> str | None:
+    return os.environ.get("GITHUB_TOKEN") or settings.github_token or None</pre>
+<p>Read from <code>os.environ</code> at call time, not import time. The sidebar writes <code>os.environ["GITHUB_TOKEN"]</code> when the user types it.</p>
+
+<p><strong>Solution 2 — URL injection before push:</strong></p>
+<pre>def push_branch(self, repo_path: Path, branch_name: str):
+    token = _token()
+    if token:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repo_path, capture_output=True, text=True
+        )
+        remote_url = result.stdout.strip()
+        if "github.com" in remote_url and f"{token}@" not in remote_url:
+            auth_url = remote_url.replace(
+                "https://", f"https://{token}@", 1
+            )
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", auth_url],
+                cwd=repo_path, check=True, capture_output=True
+            )
+    subprocess.run(["git", "push", "-u", "origin", branch_name], ...)</pre>
+
+<p>Before pushing, inject the token into the remote URL so git can authenticate. This happens every time because the cloned repo starts with a tokenless URL.</p>
+</div>
+
+<div class="callout callout-blue">
+<strong>Interview answer:</strong> "We had a chicken-and-egg problem: Pydantic Settings loads configuration at import time, but Streamlit collects the GitHub token at runtime. I solved it by making the token reader check <code>os.environ</code> dynamically at call time, and injecting the token into the git remote URL right before each push. This avoids storing credentials in config files."
+</div>
+</div>
+
+<!-- ================================================================ S12 -->
+<div id="s12">
+<div class="section-header"><div class="num">12</div><h2>Streamlit UI — Architecture &amp; Live Feed</h2></div>
+
+<p>The UI (<code>streamlit_app.py</code>) is a single-page Streamlit app. It runs the entire orchestrator pipeline in a background thread and streams events live to the main UI thread via <code>queue.Queue</code>.</p>
+
+<div class="card">
+<h3>Threading Model</h3>
+<div class="diagram">Main Thread (Streamlit)               Background Thread
+      │                                      │
+      │  User clicks "▶ Run"                 │
+      ├──────────────────────────────────────▶ threading.Thread.start()
+      │                                      │ async orchestrator.run_pipeline()
+      │                                      │
+      │  while True:                          │
+      │    event = queue.get(timeout=0.2)   │
+      │    <updates live feed HTML>          ├─ emit(PipelineEvent) → queue.put()
+      │    <updates phase stepper>           ├─ emit(PipelineEvent) → queue.put()
+      │    if event is _DONE: break          ├─ emit(PipelineEvent) → queue.put()
+      │                                      │
+      │  <render final results tabs>         │ queue.put(_DONE)
+      │                                      └─ thread exits</div>
+
+<p><strong>Key insight:</strong> Streamlit's main thread must stay free to re-render the UI. If we called <code>asyncio.run()</code> directly on the main thread, the UI would freeze for 2 minutes. The background thread + queue pattern lets us update the UI incrementally as events arrive.</p>
+</div>
+
+<div class="card">
+<h3>Live Feed Implementation</h3>
+<p>The feed uses <code>st.empty()</code> placeholders that get rewritten on every loop iteration:</p>
+<pre>feed_box = st.empty()
+card_htmls = []
+
+while True:
+    event = event_queue.get(timeout=0.2)
+    if event is _DONE:
+        break
+    card_htmls.append(_feed_card_html(event))
+    feed_box.markdown(
+        '<div class="feed-wrap">' +
+        "".join(reversed(card_htmls[-50:])) +  # newest first, cap at 50
+        '</div>',
+        unsafe_allow_html=True
+    )</pre>
+</div>
+
+<div class="card">
+<h3>Session State for Persistence</h3>
+<p>After a run completes, the <code>PipelineJob</code> is stored in <code>st.session_state["last_job"]</code>. This lets Streamlit re-render the results tabs across page refreshes without re-running the pipeline.</p>
+</div>
+</div>
+
+<!-- ================================================================ S13 -->
+<div id="s13">
+<div class="section-header"><div class="num">13</div><h2>Complete Pipeline Flow — Step by Step</h2></div>
+
+<p>Here's the exact sequence when you click "▶ Run full analysis":</p>
+
+<div class="flow">
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">1</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>User Input</h4>
+      <p>Sidebar: repo URL (<code>https://github.com/owner/repo</code>), branch (<code>main</code>), Anthropic API key, GitHub token (optional).</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">2</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Environment Setup</h4>
+      <p>Streamlit writes <code>os.environ["ANTHROPIC_API_KEY"]</code> and <code>os.environ["GITHUB_TOKEN"]</code>. Backend imports can now see them.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">3</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Job Creation</h4>
+      <p>Create <code>PipelineJob(repo_url, repo_owner, repo_name, branch)</code>. Status starts at <code>PENDING</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">4</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Background Thread Launch</h4>
+      <p><code>threading.Thread(target=_run_pipeline_in_thread, args=(job, event_queue))</code> starts. Main thread enters polling loop.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">5</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Clone Repository</h4>
+      <p><code>job.status = CLONING</code>. <code>git clone --depth=1 --branch=main {url} {tmpdir}/repo</code>. Creates temp directory via <code>tempfile.mkdtemp()</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">6</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Phase 1 — Discovery</h4>
+      <p><code>job.status = PHASE_1_DISCOVERY</code>. Run agents 1–4 in sequence:</p>
+      <ol>
+        <li><strong>Repo Mapper:</strong> build KnowledgeGraph (4 passes), emit syntax error findings</li>
+        <li><strong>Dependency Analyzer:</strong> check pip/npm dependencies</li>
+        <li><strong>Static Analysis:</strong> run Bandit/ESLint if available</li>
+        <li><strong>LLM Bug Hunter:</strong> Stage A (Haiku triage all files) → Stage B (Sonnet confirm candidates)</li>
+      </ol>
+      <p>Result: <code>job.findings</code> populated with discovered bugs.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">7</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Phase 2 — Investigation</h4>
+      <p><code>job.status = PHASE_2_INVESTIGATION</code>. For each finding:</p>
+      <ul>
+        <li>Call <code>kg.analyze_change()</code> → impact paths</li>
+        <li>Call <code>kg.blast_radius()</code> → affected file count</li>
+        <li>Query ChromaDB for similar past fixes</li>
+        <li>If no root_cause yet: LLM call to generate one</li>
+      </ul>
+      <p>Result: findings enriched with <code>blast_radius</code>, <code>impact_paths</code>, <code>similar_past_fixes</code>.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">8</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Phase 3 — Planning</h4>
+      <p><code>job.status = PHASE_3_PLANNING</code>. <strong>Repair Planner</strong> groups findings by file, orders by dependency depth (dependencies first), prioritizes security > high severity > wide blast radius.</p>
+      <p>Result: <code>job.repair_plan</code> with ordered <code>RepairPlanItem</code>s.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">9</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Phase 4 — Fix &amp; Validate (loop over plan items)</h4>
+      <p><code>job.status = PHASE_4_FIX_VALIDATE</code>. For each <code>RepairPlanItem</code>:</p>
+      <ol>
+        <li><strong>Code Generation:</strong> LLM generates SEARCH/REPLACE patch → <code>PatchResult</code></li>
+        <li>If patch.ok is False: retry up to 3 times with error feedback</li>
+        <li><strong>Validation Agent:</strong> apply patch to sandbox, run 4 gates → <code>ValidationResult</code></li>
+        <li><strong>Security Verification:</strong> Bandit on patched files → sets gate_4</li>
+        <li>Compute <code>ConfidenceScore</code> from validation + memory hit + fix order</li>
+        <li>If all gates passed: proceed to publication</li>
+        <li>Else: mark as unresolved, continue to next item</li>
+      </ol>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">10</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Phase 5 — Publication (per validated fix)</h4>
+      <p><code>job.status = PHASE_5_PUBLICATION</code>. <strong>PR Author:</strong></p>
+      <ol>
+        <li>Create branch: <code>fix/{finding_id}-{timestamp}</code></li>
+        <li>Write patch files to working tree</li>
+        <li>Commit with LLM-generated title</li>
+        <li>Push to GitHub (with token injection)</li>
+        <li>Create PR via GitHub API</li>
+        <li>Store validated fix in ChromaDB</li>
+        <li>Restore worktree to base branch</li>
+      </ol>
+      <p>Result: <code>job.pull_requests</code> contains PR objects with GitHub URLs.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">11</div><div class="flow-line"></div></div>
+    <div class="flow-body">
+      <h4>Completion</h4>
+      <p><code>job.status = COMPLETED</code>. Queue receives <code>_DONE</code> sentinel. Background thread exits. Main thread renders final results tabs.</p>
+    </div>
+  </div>
+  <div class="flow-step">
+    <div class="flow-left"><div class="flow-dot">12</div></div>
+    <div class="flow-body">
+      <h4>Cleanup</h4>
+      <p><code>finally:</code> block: <code>gc.collect()</code>, <code>time.sleep(0.5)</code>, <code>shutil.rmtree(tmpdir)</code> (Windows-safe temp cleanup).</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================================================================ S14 -->
+<div id="s14">
+<div class="section-header"><div class="num">14</div><h2>Configuration System (Pydantic Settings)</h2></div>
+
+<p>All configuration lives in <code>backend/config.py</code> as a <strong>Pydantic BaseSettings</strong> class. It reads from <code>.env</code> automatically and validates types.</p>
+
+<div class="card">
+<h3>Key Configuration Fields</h3>
+<table>
+  <tr><th>Field</th><th>Default</th><th>What it controls</th></tr>
+  <tr><td><code>anthropic_api_key</code></td><td><em>required</em></td><td>Your Claude API key (or Aerolink key)</td></tr>
+  <tr><td><code>anthropic_base_url</code></td><td><code>None</code></td><td>Set to <code>https://capi.aerolink.lat/</code> for proxy</td></tr>
+  <tr><td><code>claude_model_primary</code></td><td><code>claude-sonnet-4-6</code></td><td>Reasoning, code-gen, confirmation</td></tr>
+  <tr><td><code>claude_model_triage</code></td><td><code>claude-haiku-4-5-20251001</code></td><td>Cheap triage, JSON extraction</td></tr>
+  <tr><td><code>llm_use_temperature</code></td><td><code>False</code></td><td>Newer models deprecate temperature param</td></tr>
+  <tr><td><code>bug_hunter_enabled</code></td><td><code>True</code></td><td>Enable/disable LLM Bug Hunter</td></tr>
+  <tr><td><code>bug_hunter_max_files</code></td><td><code>0</code> (unlimited)</td><td>Cap number of files to scan</td></tr>
+  <tr><td><code>auto_fix_issue_classes</code></td><td><code>["security_vulnerability", "functional_bug", "performance"]</code></td><td>Which issue types → PRs</td></tr>
+  <tr><td><code>report_only_issue_classes</code></td><td><code>["code_quality"]</code></td><td>Which types → report-only (no PRs)</td></tr>
+  <tr><td><code>validation_run_full_suite</code></td><td><code>True</code></td><td>Run entire test suite for gate 3</td></tr>
+  <tr><td><code>confidence_threshold_auto_merge</code></td><td><code>0.70</code></td><td>Score needed for auto-merge eligibility</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h3>Example .env File</h3>
+<pre>ANTHROPIC_BASE_URL=https://capi.aerolink.lat/
+ANTHROPIC_API_KEY=aero_live_YOUR_KEY_HERE
+CLAUDE_MODEL_PRIMARY=claude-opus-5
+CLAUDE_MODEL_TRIAGE=claude-opus-5
+LLM_USE_TEMPERATURE=false
+GITHUB_TOKEN=ghp_YOUR_GITHUB_TOKEN</pre>
+</div>
+
+<div class="callout callout-blue">
+<strong>Why Pydantic Settings?</strong> Type-safe, self-documenting, fails fast on missing required fields, automatic .env loading, supports nested models. Much better than <code>os.getenv("KEY", "default")</code> scattered everywhere.
+</div>
+</div>
+
+<!-- ================================================================ S15 -->
+<div id="s15">
+<div class="section-header"><div class="num">15</div><h2>Bugs We Fixed — Technical Deep Dive</h2></div>
+
+<p>During development and deployment, we encountered 5 major bugs. Here's what went wrong and how we fixed each one.</p>
+
+<!-- Bug 1 -->
+<div class="card" style="border-left:3px solid #f59e0b;">
+<h3>🐛 Bug #1: Windows Temp Directory Cleanup — PermissionError [WinError 32]</h3>
+
+<h4>Symptom:</h4>
+<pre>PermissionError: [WinError 32] The process cannot access the file because
+it is being used by another process: '...\\.git\\objects\\...'</pre>
+
+<h4>Root Cause:</h4>
+<p>On Windows, when you <code>git clone</code> a repository, git.exe spawns background processes that keep file handles open on <code>.git/objects</code> files. Python's <code>with tempfile.TemporaryDirectory():</code> tries to delete the directory immediately when the context exits, but Windows refuses because the handles are still open.</p>
+
+<h4>The Fix:</h4>
+<ol>
+  <li>Replace <code>with tempfile.TemporaryDirectory():</code> with manual <code>tmpdir = tempfile.mkdtemp()</code></li>
+  <li>In the <code>finally:</code> block, add <code>gc.collect()</code> to force Python to close any file handles it's holding</li>
+  <li>Add <code>time.sleep(0.5)</code> to let git processes finish</li>
+  <li>Try <code>shutil.rmtree(tmpdir, ignore_errors=False)</code></li>
+  <li>If that fails, sleep 1 more second and retry with <code>ignore_errors=True</code></li>
+</ol>
+
+<pre>tmpdir = tempfile.mkdtemp()
+try:
+    repo_path = github.clone_repo(...)
+    # ... pipeline ...
+finally:
+    gc.collect()
+    time.sleep(0.5)
+    try:
+        shutil.rmtree(tmpdir, ignore_errors=False)
+    except Exception:
+        time.sleep(1.0)
+        shutil.rmtree(tmpdir, ignore_errors=True)</pre>
+
+<p><strong>Applied to:</strong> <code>backend/agents/orchestrator.py</code> and <code>streamlit_app.py</code> (the repo map builder)</p>
+</div>
+
+<!-- Bug 2 -->
+<div class="card" style="border-left:3px solid #ef4444;">
+<h3>🐛 Bug #2: Aerolink Proxy Blocking User-Agent</h3>
+
+<h4>Symptom:</h4>
+<pre>anthropic.PermissionDeniedError: Error code: 403
+Your request was blocked by our security system.</pre>
+
+<h4>Root Cause:</h4>
+<p>Aerolink's WAF blocks any request with <code>"Anthropic/Python"</code> in the User-Agent header. The Anthropic SDK version 0.111.0 always prepends <code>"Anthropic/Python 0.111.0"</code> to the UA — even if you set custom headers, it concatenates them.</p>
+
+<h4>Failed Attempt:</h4>
+<pre>self.client = anthropic.AsyncAnthropic(
+    api_key=key,
+    base_url=proxy_url,
+    default_headers={"user-agent": "python-httpx/0.28.1"}  # doesn't work!
+)</pre>
+<p>The SDK still sends: <code>User-Agent: Anthropic/Python 0.111.0, python-httpx/0.28.1</code></p>
+
+<h4>The Fix:</h4>
+<p>Subclass <code>httpx.AsyncHTTPTransport</code> and intercept the request at the lowest layer before it goes out:</p>
+<pre>class _StripAnthropicUATransport(httpx.AsyncHTTPTransport):
+    async def handle_async_request(self, request: httpx.Request):
+        request.headers["user-agent"] = "python-httpx/0.28.1"
+        return await super().handle_async_request(request)
+
+self.client = anthropic.AsyncAnthropic(
+    api_key=settings.anthropic_api_key,
+    base_url=settings.anthropic_base_url,
+    http_client=httpx.AsyncClient(transport=_StripAnthropicUATransport())
+)</pre>
+
+<p><strong>Applied to:</strong> <code>backend/utils/llm_client.py</code></p>
+</div>
+
+<!-- Bug 3 -->
+<div class="card" style="border-left:3px solid #f59e0b;">
+<h3>🐛 Bug #3: Wrong Environment Variable Names</h3>
+
+<h4>Symptom:</h4>
+<p>LLM calls still blocked by Aerolink even after UA fix. Model name was falling back to defaults instead of using the .env values.</p>
+
+<h4>Root Cause:</h4>
+<p>The .env file used incorrect variable names that didn't match the Pydantic field names:</p>
+<pre># ❌ WRONG (these are ignored by Pydantic)
+ANTHROPIC_MODEL=claude-opus-5
+CLAUDE_MODEL=claude-opus-5
+
+# ✅ CORRECT (matches Pydantic field names)
+CLAUDE_MODEL_PRIMARY=claude-opus-5
+CLAUDE_MODEL_TRIAGE=claude-opus-5</pre>
+
+<p>Pydantic Settings maps env vars to fields by exact name match (with underscores). If the var doesn't match a field, it's silently ignored.</p>
+
+<h4>The Fix:</h4>
+<p>Updated .env to use correct field names from <code>config.py</code>:</p>
+<pre>ANTHROPIC_BASE_URL=https://capi.aerolink.lat/
+ANTHROPIC_API_KEY=aero_live_...
+CLAUDE_MODEL_PRIMARY=claude-opus-5
+CLAUDE_MODEL_TRIAGE=claude-opus-5
+LLM_USE_TEMPERATURE=false
+GITHUB_TOKEN=ghp_...</pre>
+
+<p><strong>Applied to:</strong> <code>.env</code> file</p>
+</div>
+
+<!-- Bug 4 -->
+<div class="card" style="border-left:3px solid #ef4444;">
+<h3>🐛 Bug #4: GitHub Token Not Reaching GitHubClient</h3>
+
+<h4>Symptom:</h4>
+<pre>subprocess.CalledProcessError: Command ['git', 'push'] returned non-zero
+exit status 128
+stderr: remote: Permission to owner/repo.git denied to ...</pre>
+
+<h4>Root Cause:</h4>
+<p>Two issues stacked:</p>
+<ol>
+  <li><strong>Pydantic import-time freeze:</strong> <code>settings = Settings()</code> runs when <code>config.py</code> is imported (at module load). The Streamlit sidebar hasn't run yet, so <code>GITHUB_TOKEN</code> isn't in <code>os.environ</code>. Result: <code>settings.github_token = None</code> forever.</li>
+  <li><strong>Token not in git remote URL:</strong> Even if we had the token, the cloned repo's remote URL was <code>https://github.com/...</code> without auth. Git push would prompt for credentials (which fails in non-interactive mode).</li>
+</ol>
+
+<h4>The Fix (Part 1 — Dynamic Token Reading):</h4>
+<pre>def _token() -> str | None:
+    """Read GitHub token at call time, not import time."""
+    return (
+        os.environ.get("GITHUB_TOKEN")  # Streamlit writes this
+        or settings.github_token         # .env fallback
+        or None
+    )</pre>
+
+<h4>The Fix (Part 2 — URL Injection Before Push):</h4>
+<pre>def push_branch(self, repo_path: Path, branch_name: str):
+    token = _token()
+    if token:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repo_path, capture_output=True, text=True
+        )
+        remote_url = result.stdout.strip()
+        if "github.com" in remote_url and f"{token}@" not in remote_url:
+            # Inject token: https://github.com/... → https://TOKEN@github.com/...
+            auth_url = remote_url.replace("https://", f"https://{token}@", 1)
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", auth_url],
+                cwd=repo_path, check=True, capture_output=True
+            )
+    # Now push will authenticate
+    subprocess.run(["git", "push", "-u", "origin", branch_name], ...)</pre>
+
+<p><strong>Applied to:</strong> <code>backend/utils/github_client.py</code></p>
+</div>
+
+<!-- Bug 5 -->
+<div class="card" style="border-left:3px solid #f59e0b;">
+<h3>🐛 Bug #5: PRs Not Appearing on GitHub (Permissions)</h3>
+
+<h4>Symptom:</h4>
+<p>Push succeeds, but <code>create_pull_request()</code> returns an error or PR doesn't appear on GitHub.</p>
+
+<h4>Root Cause:</h4>
+<p>The test repo <code>andela/buggy-python</code> is not owned by the user. You can't open PRs on repos you don't have write access to.</p>
+
+<h4>The Fix:</h4>
+<p>This isn't a code bug — it's expected behavior. The solution is to <strong>fork the repository</strong> first, then run the analysis against your fork. The PR will then appear on your fork and you can open an upstream PR manually if desired.</p>
+
+<p><strong>Status:</strong> Documented as expected behavior. User accepted this.</p>
+</div>
+
+<div class="callout callout-green">
+<strong>What this demonstrates:</strong> Systematic debugging (logs → hypothesis → trace SDK source → test fix), handling platform-specific issues (Windows file locking), understanding third-party library internals (Anthropic SDK UA concatenation), and config management patterns (Pydantic Settings import-time vs runtime).
+</div>
+</div>
+
+<!-- ================================================================ S16 -->
+<div id="s16">
+<div class="section-header"><div class="num">16</div><h2>Interview Q&amp;A Cheat Sheet</h2></div>
+
+<p>Memorise these answers. They cover the most common technical interview questions about this project.</p>
+
+<div class="qa">
+<div class="question">Q: Walk me through the system architecture at a high level.</div>
+<div class="answer">
+<p>"It's a 5-phase multi-agent pipeline. Phase 1 (Discovery): we build a NetworkX knowledge graph from Python AST parsing, then use a tiered LLM approach — Haiku triages all files cheaply, Sonnet confirms real bugs with evidence. Phase 2 (Investigation): we enrich each finding with cross-file blast radius using graph traversal and query ChromaDB for similar past fixes. Phase 3 (Planning): group findings by file and order by dependency depth. Phase 4 (Fix & Validate): generate SEARCH/REPLACE patches with Sonnet, validate through 4 gates — AST syntax, pytest, regression suite, and Bandit security scan. Phase 5 (Publication): commit to a new branch, push to GitHub with token injection, and open a PR via the GitHub API. The entire flow runs in a background thread with live event streaming to a Streamlit UI via queue.Queue."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: Why did you choose NetworkX for the knowledge graph instead of a graph database like Neo4j?</div>
+<div class="answer">
+<p>"NetworkX is an in-memory Python library that's fast for small-to-medium repos (under 10K files). We rebuild the graph from scratch on each run anyway, so we don't need persistence. NetworkX gives us BFS/DFS out of the box for blast radius calculations, and it integrates naturally with the Python AST data structures. A graph DB would add deployment complexity (running a separate database server) for a use case that doesn't need it."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: How does the knowledge graph help with bug detection?</div>
+<div class="answer">
+<p>"The graph tracks IMPORTS, CALLS, and TESTS edges between files and functions. When we find a bug in db.py, we traverse the graph backwards (against the import direction) to find all consumers — this tells us the blast radius. We also use it to fetch related files as context for the LLM: if db.py imports auth.py and is imported by api.py, we send those files to the LLM so it can see the full contract and verify the bug is real, not just a local oddity. The graph also detects circular dependencies and finds related tests automatically."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: Why use two LLM tiers (Haiku + Sonnet) instead of just one model?</div>
+<div class="answer">
+<p>"Cost and speed. If we sent every file to Sonnet, a 100-file repo would cost ~$1.50 in LLM calls. With the two-stage pipeline, Haiku does a cheap triage pass at $0.001/file to flag candidates, then we only send files with candidates to Sonnet for deep verification. This cuts cost by 80% and runtime by 60% while maintaining the same accuracy — because Haiku is good enough to spot suspicious patterns, and Sonnet confirms whether they're real."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: What's the SEARCH/REPLACE patching system and why not just regenerate the whole file?</div>
+<div class="answer">
+<p>"LLMs hallucinate when asked to regenerate entire files — they drop imports, change unrelated code, and produce huge diffs that are hard to review. SEARCH/REPLACE forces the LLM to anchor each edit to an exact snippet from the current file. If the SEARCH text doesn't match exactly once, the edit is rejected atomically. This guarantees minimal diffs (only the lines that need to change) and prevents the LLM from drifting off into hallucination mode. We also have a sanity check: if more than 60% of the file changes, we reject it as a likely whole-file rewrite."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: How do you handle cases where the repository has no test suite?</div>
+<div class="answer">
+<p>"We detect this by looking for pytest config files and test_*.py files. If there are none, we set tests_available=False and skip gates 2 & 3. The patch can still be published — gate 1 (AST syntax) must pass, and if Bandit is available we run it. But the confidence score is capped at 60%, which forces the PR to be created as a draft requiring human approval. This prevents us from auto-merging changes that couldn't be validated by tests."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: Explain the confidence scoring system.</div>
+<div class="answer">
+<p>"It's a weighted composite of 5 signals: tests passed (40%), security clean (25%), AST valid (10%), cache hit (15%), and fix order (10%). Tests are the strongest signal because they prove the patch doesn't break existing behavior. Security is next because a fix that introduces a vulnerability is worse than no fix. If the score is 70% or higher and it's not critical path code, the PR is eligible for auto-merge. Below 70% or if it touches auth/crypto patterns, it requires human approval."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: What was the hardest bug you encountered and how did you fix it?</div>
+<div class="answer">
+<p>"The Aerolink User-Agent blocking. Symptoms: all LLM calls were returning 403 Forbidden. I checked the network logs and saw the proxy was rejecting requests with 'Anthropic/Python' in the User-Agent. I tried setting default_headers in the SDK, but it still failed — turned out the SDK concatenates its own UA with yours. I read the anthropic SDK source, found it uses httpx under the hood, and realized I could subclass AsyncHTTPTransport to intercept the request before it's sent. I overrode handle_async_request() to replace the User-Agent header at the lowest layer. That fixed it. This demonstrates debugging third-party libraries at the HTTP transport level."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: How does ChromaDB memory improve the system?</div>
+<div class="answer">
+<p>"ChromaDB stores embeddings of past validated fixes — the bug type, root cause, and fix strategy. When investigating a new bug, we query ChromaDB for semantically similar past fixes in the same repo. If we find a match with cosine similarity ≥ 0.85, it means we've fixed something similar before. The Code Generator sees this as context ('here's a fix that worked last time') and the confidence scorer adds 15% because we're repeating a known-good pattern. It also prevents duplicate fix attempts — the document ID is a hash of (repo, bug_type, file, root_cause), so re-running the pipeline on the same bug updates the existing memory entry instead of creating duplicates."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: Why Streamlit instead of a React frontend + FastAPI backend?</div>
+<div class="answer">
+<p>"Speed of iteration. Streamlit lets you build an interactive UI with live updates in pure Python — no separate frontend/backend split, no API contracts to maintain. The live feed is implemented with st.empty() placeholders that get rewritten on every event. The tradeoff is we're tied to Streamlit's component model and single-process architecture, but for a proof-of-concept that's acceptable. In production you'd probably want FastAPI + React + WebSocket for the live feed, but Streamlit gets you 80% of the way there in 20% of the code."</p>
+</div>
+</div>
+
+<div class="qa">
+<div class="question">Q: What would you improve if you had more time?</div>
+<div class="answer">
+<strong>Answers (pick 2-3):</strong>
+<ul>
+  <li><strong>Parallel agent execution:</strong> Right now agents run sequentially. We could parallelize Phase 1 discovery (run LLM Bug Hunter on chunks of files concurrently) to cut runtime from 2min to under 1min.</li>
+  <li><strong>Better C/C++ support:</strong> Currently we only parse #include directives with regex. Full clang AST parsing would give us function-level call graphs for C/C++ like we have for Python.</li>
+  <li><strong>Multi-repo learning:</strong> Right now ChromaDB memory is scoped per repo. We could have a global memory pool that learns patterns across all repos a user has analyzed.</li>
+  <li><strong>Incremental graph updates:</strong> Rebuild the graph from scratch every run. For large repos, we could cache the graph and only update changed files.</li>
+  <li><strong>Confidence signal tuning:</strong> The 40/25/10/15/10 weights are somewhat arbitrary. We could tune them with ML on a corpus of accepted vs rejected PRs.</li>
+</ul>
+</div>
+</div>
+
+<div class="callout callout-green" style="margin-top:32px;">
+<strong>Final tip:</strong> Practice explaining the 30-second elevator pitch out loud. Interviewers often start with "tell me about this project" — nail that and you set the tone for the rest of the conversation.
+</div>
+</div>
+
+<!-- ================================================================ FOOTER -->
+<div style="margin-top:80px; padding:32px 0; border-top:1px solid var(--border); text-align:center; color:var(--muted); font-size:14px;">
+  <p><strong>Multi-Agent Bug Detection & Auto-PR System</strong> — Complete Study Guide</p>
+  <p style="margin-top:8px;">Generated for interview preparation • Study time: ~2 days</p>
+  <p style="margin-top:16px;">💡 <em>To convert this to PDF: open in Chrome → Print → Save as PDF (enable background graphics)</em></p>
+</div>
+
+</div><!-- container -->
+
+</body>
+</html>
+
+
+
+
+

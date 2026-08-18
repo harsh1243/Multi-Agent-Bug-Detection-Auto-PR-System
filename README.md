@@ -75,53 +75,66 @@ flowchart TB
     ORC["🧠 Orchestrator — orchestrator.py<br/>sequencing · retries · partial-failure handling"]
     ORC --> CLONE["Phase 0 · Acquisition<br/>shallow clone into a disposable workdir"]
 
-    subgraph P1["Phase 1 · Discovery — three branches, one asyncio.gather"]
-        direction LR
-        A1["1 · Repo Mapper<br/>builds the knowledge graph"]
-        A4["4 · LLM Bug Hunter<br/>Haiku triage → Sonnet confirm"]
-        A2["2 · Dependency Analyzer<br/>CVE-flagged + outdated packages"]
-        A3["3 · Static Analysis<br/>Bandit / ESLint"]
-        A1 -->|"needs the graph"| A4
+    CLONE --> P1_START{{"Phase 1 Start<br/>asyncio.gather spawns 3 parallel branches"}}
+
+    subgraph B1["Branch 1 (Sequential Chain)"]
+        direction TB
+        A1["Agent 1 · Repo Mapper<br/>Build knowledge graph via ast.parse()<br/>Find: syntax errors, circular imports"]
+        A4["Agent 4 · LLM Bug Hunter<br/>Stage A: Haiku triage (cheap, fast)<br/>Stage B: Sonnet confirm (expensive, accurate)<br/>Find: logic bugs, SQL injection, context-aware issues"]
+        A1 -->|"passes graph to Agent 4"| A4
     end
 
-    CLONE --> A1
-    CLONE --> A2
-    CLONE --> A3
+    subgraph B2["Branch 2 (Independent)"]
+        A2["Agent 2 · Dependency Analyzer<br/>Run: pip-audit, npm audit, safety<br/>Find: CVEs in libraries (requests, Django, etc)"]
+    end
 
-    A4 --> DED{"Dedupe, then split:<br/>fixable vs report-only"}
-    A2 --> DED
-    A3 --> DED
+    subgraph B3["Branch 3 (Independent)"]
+        A3["Agent 3 · Static Analysis<br/>Run: Bandit (Python), ESLint (JS/TS)<br/>Find: hardcoded secrets, eval(), pickle.loads()"]
+    end
+
+    P1_START -.->|"start simultaneously"| B1
+    P1_START -.->|"start simultaneously"| B2
+    P1_START -.->|"start simultaneously"| B3
+
+    A4 --> GATHER
+    A2 --> GATHER
+    A3 --> GATHER
+    GATHER{{"asyncio.gather<br/>waits for all 3 branches"}} --> DED
+
+    DED{"Dedupe findings<br/>Split: fixable vs report-only"}
 
     subgraph P23["Phase 2 · Investigation → Phase 3 · Planning"]
         direction LR
-        A5["5 · Bug Investigation<br/>root cause · blast radius · memory"]
-        A6["6 · Repair Planner<br/>group by file · topological sort"]
+        A5["Agent 5 · Bug Investigation<br/>Graph: blast radius, impact paths, data flow<br/>Memory: query ChromaDB for similar fixes<br/>LLM: root cause analysis"]
+        A6["Agent 6 · Repair Planner<br/>Group by file · Topological sort<br/>Security files first"]
         A5 --> A6
     end
 
     DED -->|"fixable findings"| A5
 
-    subgraph P45["Phase 4 · Fix and Validate → Phase 5 · Publication"]
+    subgraph P45["Phase 4 · Fix and Validate → Phase 5 · Publication (per-file loop)"]
         direction LR
-        A7["7 · Code Generation<br/>anchored SEARCH/REPLACE edits"]
-        A8["8 · Validation<br/>gates 1-3 · AST · pytest + bandit · regression"]
-        A9["9 · Security Verification<br/>gate 4 · differential pre/post scan"]
-        A10["10 · PR Author<br/>confidence score + approval gate"]
+        A7["Agent 7 · Code Generation<br/>LLM generates SEARCH/REPLACE patches<br/>Can edit multiple files (cross-file fixes)"]
+        A8["Agent 8 · Validation<br/>Gate 1: AST syntax check<br/>Gate 2: pytest<br/>Gate 3: Regression tests"]
+        A9["Agent 9 · Security Verification<br/>Gate 4: Bandit pre/post diff"]
+        A10["Agent 10 · PR Author<br/>Compute confidence score<br/>Create GitHub PR"]
         A7 --> A8 --> A9
-        A9 -->|"all four gates clean"| A10
+        A9 -->|"all gates pass"| A10
     end
 
-    A6 -->|"one plan item at a time"| A7
-    A9 -->|"a gate failed, retries remain (max 3)"| A7
-    A10 -.->|"next plan item"| A7
+    A6 -->|"one file at a time"| A7
+    A9 -->|"gate failed, retries < 3"| A7
+    A10 -.->|"next file in plan"| A7
 
-    DED -.->|"nothing fixable"| DONE(["COMPLETED<br/>report-only findings, no PR"])
+    DED -.->|"no fixable findings"| DONE(["COMPLETED<br/>report-only findings, no PR"])
     A9 -.->|"retries exhausted"| UNRES(["Unresolved<br/>no PR opened"])
-    A10 --> PR(["Pull request<br/>draft if confidence &lt; 70%"])
+    A10 --> PR(["Pull Request Created<br/>draft if confidence < 70%"])
 
     classDef orc fill:#eef2ff,stroke:#4f46e5,stroke-width:2px,color:#312e81
     classDef agent fill:#ffffff,stroke:#7c3aed,stroke-width:1.5px,color:#25324f
+    classDef branch fill:#f0fdf4,stroke:#16a34a,stroke-width:2px,color:#14532d
     classDef step fill:#f8fafc,stroke:#94a3b8,stroke-width:1.4px,color:#334155
+    classDef sync fill:#fef3c7,stroke:#f59e0b,stroke-width:2px,color:#78350f
     classDef dec fill:#fff7ed,stroke:#d97706,stroke-width:1.5px,color:#92400e
     classDef good fill:#ecfdf5,stroke:#059669,stroke-width:1.5px,color:#065f46
     classDef info fill:#f0f9ff,stroke:#0891b2,stroke-width:1.5px,color:#0e7490
@@ -129,17 +142,31 @@ flowchart TB
 
     class ORC orc
     class A1,A2,A3,A4,A5,A6,A7,A8,A9,A10 agent
+    class B1,B2,B3 branch
     class START,CLONE step
+    class P1_START,GATHER sync
     class DED dec
     class PR good
     class DONE info
     class UNRES bad
 ```
 
-Solid arrows are the normal path; dotted arrows are exits and loop-backs. Phase 1's three
-branches run concurrently under a single `asyncio.gather` — the Bug Hunter chains after the
-Repo Mapper because it needs the knowledge graph. Phase 4 processes plan items one at a time,
-and Phase 5 runs inside that same per-item loop, so a run can open several PRs.
+**Phase 1 Parallelism Explained:**
+
+Phase 1 spawns **3 concurrent branches** (not 4 agents in parallel):
+
+- **Branch 1 (Sequential Chain):** Agent 1 builds the knowledge graph → Agent 4 uses that graph for bug hunting
+- **Branch 2 (Independent):** Agent 2 scans dependencies for CVEs (doesn't need the graph)
+- **Branch 3 (Independent):** Agent 3 runs static analysis tools (doesn't need the graph)
+
+All 3 branches start simultaneously. Total time = longest branch (typically Branch 1: Agent 1 + Agent 4).
+
+**Why this design?** Agent 4 needs the knowledge graph to:
+- Prioritize files by importance (graph in-degree)
+- Send graph context to Haiku (what imports this file)
+- Fetch related files for Sonnet confirmation
+
+Agents 2 & 3 are independent — they only scan dependency files and source code patterns.
 
 
 ---
@@ -148,22 +175,22 @@ and Phase 5 runs inside that same per-item loop, so a run can open several PRs.
 
 Numbering matches the workflow diagram above.
 
-| # | Agent | Module | Phase | Responsibility |
-|---|-------|--------|-------|----------------|
-| 1 | **Repo Mapper** | `repo_mapper.py` | 1 · Discovery | Build the knowledge graph (files, functions, classes, API routes, DB models, imports/calls). |
-| 2 | **Dependency Analyzer** | `dependency_analyzer.py` | 1 · Discovery | Scan `requirements.txt` / `package.json` for CVE-flagged & outdated packages. |
-| 3 | **Static Analysis** | `static_analysis.py` | 1 · Discovery | Run Bandit (Python) and ESLint (JS/TS); normalise their output into findings. |
-| 4 | **LLM Bug Hunter** | `llm_bug_hunter.py` | 1 · Discovery | Two-stage LLM detection (Haiku triage → Sonnet confirm) across all four issue classes. Chains after agent 1 — it reads the knowledge graph. |
-| 5 | **Bug Investigation** | `bug_investigation.py` | 2 · Investigation | Root cause, severity, blast radius, affected modules; query memory for similar past fixes. |
-| 6 | **Repair Planner** | `repair_planner.py` | 3 · Planning | Group fixable findings by file; order by dependency (security first) via topological sort. |
-| 7 | **Code Generation** | `code_generation.py` | 4 · Fix loop | Produce minimal anchored `SEARCH/REPLACE` edits — **across multiple files** when the root cause lives elsewhere — + a real unified diff. |
-| 8 | **Validation** | `validation_agent.py` | 4 · Fix loop | Gates 1–3: AST check → pytest + bandit → regression tests on blast-radius modules. |
-| 9 | **Security Verification** | `security_verification.py` | 4 · Fix loop | Gate 4: differential pre/post scan — original vuln gone, no new ones introduced. |
-| 10 | **PR Author** | `pr_author.py` | 5 · Publication | Compute confidence, apply the approval gate, open one GitHub PR per file. |
+| # | Agent | Module | Phase | What It Scans | What It Finds |
+|---|-------|--------|-------|---------------|---------------|
+| 1 | **Repo Mapper** | `repo_mapper.py` | 1 · Discovery | All Python/C/C++ files via `ast.parse()` and compiler | **Structural issues:** Python syntax errors, C/C++ compile errors, circular import chains. Builds the knowledge graph (files, functions, classes, imports/calls). |
+| 2 | **Dependency Analyzer** | `dependency_analyzer.py` | 1 · Discovery | `requirements.txt`, `package.json`, `pyproject.toml` via pip-audit, npm audit, safety | **Library vulnerabilities:** CVEs in third-party packages (e.g., `requests==2.25.0` has CVE-2023-32681). |
+| 3 | **Static Analysis** | `static_analysis.py` | 1 · Discovery | Python files via Bandit, JS/TS files via ESLint | **Known bad patterns:** hardcoded secrets, `eval()`, `pickle.loads()`, weak crypto (MD5), missing `except` clauses. Fast, deterministic, pattern-based. |
+| 4 | **LLM Bug Hunter** | `llm_bug_hunter.py` | 1 · Discovery | Selected source files (prioritized by graph importance) via Haiku → Sonnet | **Context-aware bugs:** SQL injection (understands data flow), logic errors (missing return, off-by-one), broken API contracts, N+1 queries. Expensive but smart. **Chains after Agent 1** — needs the knowledge graph. |
+| 5 | **Bug Investigation** | `bug_investigation.py` | 2 · Investigation | All fixable findings from Phase 1 | Enriches findings with: blast radius (affected files), impact paths, related tests, ChromaDB memory lookup, LLM root cause analysis. |
+| 6 | **Repair Planner** | `repair_planner.py` | 3 · Planning | Enriched findings from Agent 5 | Groups findings by file, builds dependency graph, sorts topologically (security files first). Output: ordered repair plan (one item per file). |
+| 7 | **Code Generation** | `code_generation.py` | 4 · Fix loop | Primary file + graph-selected related files | Generates minimal `SEARCH/REPLACE` patches via LLM. Can edit **multiple files** when root cause is in a dependency. |
+| 8 | **Validation** | `validation_agent.py` | 4 · Fix loop | Generated patch applied to repo copy | **3 gates:** AST syntax check, pytest on related tests, regression tests on blast-radius files. |
+| 9 | **Security Verification** | `security_verification.py` | 4 · Fix loop | Pre-patch vs post-patch Bandit scan | **Gate 4:** Differential security scan — confirms original vulnerability removed, no new issues introduced. |
+| 10 | **PR Author** | `pr_author.py` | 5 · Publication | Validated patch + confidence score | Computes 5-signal confidence score, applies approval gate (draft if <70%), creates GitHub PR with structured description. |
 
 The **Orchestrator** (`orchestrator.py`) sits outside this numbering: it owns sequencing,
-concurrency, the retry budget and graceful partial-failure handling for all five phases,
-rather than contributing findings or fixes of its own.
+concurrency (spawning the 3 parallel branches in Phase 1), the retry budget (max 3 attempts per fix),
+and graceful partial-failure handling for all five phases.
 
 ---
 

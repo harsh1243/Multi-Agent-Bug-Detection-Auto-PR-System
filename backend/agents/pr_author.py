@@ -91,6 +91,23 @@ class PRAuthorAgent:
                 repo_owner, repo_name, title, description,
                 branch_name, base_branch=base_branch, draft=requires_approval,
             )
+            # Auto-merge when confidence is high enough and not a critical path.
+            # Draft PRs always require human approval — never auto-merge those.
+            if pr_url and not requires_approval:
+                merged = self.github.merge_pull_request(
+                    repo_owner, repo_name, pr_url, commit_message=title,
+                )
+                if event_emitter:
+                    await event_emitter(PipelineEvent(
+                        event_type="agent_progress", agent_name=self.name,
+                        phase=self.phase,
+                        message=(
+                            f"PR auto-merged: {pr_url}"
+                            if merged
+                            else f"PR created (auto-merge skipped — not mergeable yet): {pr_url}"
+                        ),
+                        details={"pr_url": pr_url, "auto_merged": merged},
+                    ))
         except Exception as e:
             if event_emitter:
                 await event_emitter(PipelineEvent(

@@ -171,6 +171,45 @@ class GitHubClient:
         )
         return pr.html_url
 
+    def merge_pull_request(
+        self,
+        owner: str,
+        repo: str,
+        pr_url: str,
+        commit_message: str = "",
+    ) -> bool:
+        """Merge an open PR by its URL. Returns True on success.
+
+        Only merges if the PR is open and not a draft. Uses squash merge
+        so the fix lands as a single clean commit on the base branch.
+        """
+        if not _token() or not pr_url:
+            return False
+        try:
+            repository = self._github().get_repo(f"{owner}/{repo}")
+            # Extract PR number from URL (last path segment)
+            pr_number = int(pr_url.rstrip("/").split("/")[-1])
+            pr = repository.get_pull(pr_number)
+            if pr.state != "open" or pr.draft:
+                return False
+            # Wait briefly for GitHub to register the PR as mergeable
+            import time
+            for _ in range(5):
+                pr = repository.get_pull(pr_number)
+                if pr.mergeable is not None:
+                    break
+                time.sleep(2)
+            if not pr.mergeable:
+                return False
+            msg = commit_message or pr.title
+            pr.merge(
+                commit_title=msg,
+                merge_method="squash",
+            )
+            return True
+        except Exception:
+            return False
+
     def get_repo_info(self, repo_url: str) -> tuple[str, str]:
         """Extract owner and repo name from URL."""
         parts = repo_url.rstrip("/").split("/")
