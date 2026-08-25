@@ -1,0 +1,4 @@
+# Streamlit Community Cloud only reads requirements.txt from the repo root.
+# The real pin list lives in backend/requirements.txt — this forwards to it so
+# there is one source of truth for both local installs and cloud deploys.
+-r backend/requirements.txt
