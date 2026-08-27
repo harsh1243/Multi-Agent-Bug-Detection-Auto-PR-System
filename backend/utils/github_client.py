@@ -40,8 +40,10 @@ class GitHubClient:
     def _github(self) -> Github:
         """Return an authenticated PyGitHub instance (lazy, token-aware)."""
         tok = _token()
-        if self._gh is None or (tok and not isinstance(self._gh._Github__requester._Requester__authorizationHeader, str)):
-            self._gh = Github(tok) if tok else Github()
+        # Always rebuild the client when called — simpler than tracking token changes.
+        # PyGitHub construction is cheap (no network call), and this is only called
+        # a few times per run (fork check, PR creation, merge).
+        self._gh = Github(tok) if tok else Github()
         return self._gh
 
     def ensure_fork(self, owner: str, repo: str) -> tuple[str, str]:
