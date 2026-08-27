@@ -44,6 +44,50 @@ class GitHubClient:
             self._gh = Github(tok) if tok else Github()
         return self._gh
 
+    def ensure_fork(self, owner: str, repo: str) -> tuple[str, str]:
+        """Fork the repo if we don't have push access, return (owner, repo) to use.
+
+        If the authenticated user owns the repo or is a collaborator with push
+        rights, returns the original (owner, repo). Otherwise forks to the user's
+        account and returns (user.login, repo). Creates the fork if it doesn't
+        exist yet; reuses it if it already exists.
+
+        Returns the original owner/repo unchanged if no token is configured.
+        """
+        tok = _token()
+        if not tok:
+            # No token — can't check permissions or fork. Caller will fail at push.
+            return owner, repo
+
+        gh = self._github()
+        try:
+            repository = gh.get_repo(f"{owner}/{repo}")
+            user = gh.get_user()
+
+            # Do we already have push access?
+            if repository.owner.login == user.login:
+                return owner, repo  # we own it
+            if repository.permissions and repository.permissions.push:
+                return owner, repo  # we're a collaborator with push
+
+            # Need a fork. Check if we already forked it.
+            try:
+                fork = user.get_repo(repo)
+                if fork.fork and fork.parent and fork.parent.full_name == f"{owner}/{repo}":
+                    # Fork exists and points at the right upstream.
+                    return user.login, repo
+            except Exception:
+                pass  # fork doesn't exist yet
+
+            # Create the fork (async on GitHub's side; usually ready in <5s).
+            fork = user.create_fork(repository)
+            return fork.owner.login, fork.name
+
+        except Exception:
+            # API call failed (rate limit, network, etc.) — return original and let
+            # the push attempt surface the real error.
+            return owner, repo
+
     def clone_repo(self, repo_url: str, target_dir: Path, branch: str = "main") -> Path:
         """Clone a repository to target directory."""
         # Extract owner/repo from URL
@@ -98,8 +142,13 @@ class GitHubClient:
             cwd=repo_path, check=True, capture_output=True,
         )
 
-    def push_branch(self, repo_path: Path, branch_name: str) -> None:
-        """Push branch to remote.
+    def push_branch(self, repo_path: Path, branch_name: str, upstream_owner: str = "", upstream_repo: str = "") -> tuple[str, str]:
+        """Push branch to remote, forking first if we lack push access.
+
+        Returns (fork_owner, fork_repo) — the owner/repo the branch was pushed to.
+        When we have push access to the original repo, returns the original owner/repo.
+        When we forked, returns the fork's owner/repo so the caller can create a
+        cross-repo PR with the correct head format (fork_owner:branch → base_owner:base).
 
         Re-injects the token into the remote URL at push time so that the push
         is authenticated even when the repo was cloned without credentials (e.g.
@@ -108,20 +157,41 @@ class GitHubClient:
         Permission to <owner>/<repo>.git denied).
         """
         token = _token()
-        if token:
-            # Read the current remote URL and embed the token if not already there.
-            result = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                cwd=repo_path, capture_output=True, text=True,
+
+        # Read current remote to extract owner/repo if not provided
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=repo_path, capture_output=True, text=True,
+        )
+        remote_url = result.stdout.strip()
+
+        if not upstream_owner and remote_url:
+            # Extract from remote: https://github.com/owner/repo.git
+            parts = remote_url.replace("https://", "").replace("http://", "").split("/")
+            if len(parts) >= 3 and "github.com" in parts[0]:
+                upstream_owner = parts[1]
+                upstream_repo = parts[2].replace(".git", "")
+
+        # Check if we need to fork
+        fork_owner, fork_repo = upstream_owner, upstream_repo
+        if token and upstream_owner and upstream_repo:
+            fork_owner, fork_repo = self.ensure_fork(upstream_owner, upstream_repo)
+
+        # If we forked, update the remote URL to point at the fork
+        if fork_owner != upstream_owner and token:
+            fork_url = f"https://{token}@github.com/{fork_owner}/{fork_repo}.git"
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", fork_url],
+                cwd=repo_path, check=True, capture_output=True,
             )
-            remote_url = result.stdout.strip()
-            if remote_url and "github.com" in remote_url and f"{token}@" not in remote_url:
-                # https://github.com/... → https://TOKEN@github.com/...
-                auth_url = remote_url.replace("https://", f"https://{token}@", 1)
-                subprocess.run(
-                    ["git", "remote", "set-url", "origin", auth_url],
-                    cwd=repo_path, check=True, capture_output=True,
-                )
+        elif token and remote_url and "github.com" in remote_url and f"{token}@" not in remote_url:
+            # No fork, but embed token in URL for auth
+            auth_url = remote_url.replace("https://", f"https://{token}@", 1)
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", auth_url],
+                cwd=repo_path, check=True, capture_output=True,
+            )
+
         result = subprocess.run(
             ["git", "push", "-u", "origin", branch_name],
             cwd=repo_path, capture_output=True, timeout=120,
@@ -133,6 +203,8 @@ class GitHubClient:
                 ["git", "push"],
                 stderr=stderr.encode(),
             )
+
+        return fork_owner, fork_repo
 
     def restore_worktree(self, repo_path: Path, base_branch: str | None = None) -> None:
         """Discard uncommitted changes and return to the base branch.

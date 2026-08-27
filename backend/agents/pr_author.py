@@ -86,10 +86,16 @@ class PRAuthorAgent:
             if not wrote:
                 raise RuntimeError("patch produced no file content to commit")
             self.github.commit_changes(repo_path, title)
-            self.github.push_branch(repo_path, branch_name)
+            # Push returns (fork_owner, fork_repo) — the actual owner/repo the branch
+            # was pushed to. If we forked, this differs from repo_owner/repo_name.
+            fork_owner, fork_repo = self.github.push_branch(
+                repo_path, branch_name, repo_owner, repo_name
+            )
+            # PR head format: "branch" for same-repo, "fork_owner:branch" for cross-repo
+            pr_head = branch_name if fork_owner == repo_owner else f"{fork_owner}:{branch_name}"
             pr_url = self.github.create_pull_request(
                 repo_owner, repo_name, title, description,
-                branch_name, base_branch=base_branch, draft=requires_approval,
+                pr_head, base_branch=base_branch, draft=requires_approval,
             )
             # Auto-merge when confidence is high enough and not a critical path.
             # Draft PRs always require human approval — never auto-merge those.
