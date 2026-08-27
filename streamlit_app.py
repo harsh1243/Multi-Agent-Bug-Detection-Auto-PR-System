@@ -33,6 +33,33 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 
+def _load_streamlit_secrets() -> None:
+    """Copy ``st.secrets`` into os.environ so cloud deploys can be configured.
+
+    On Streamlit Community Cloud there is no .env file (it is gitignored), and
+    the sidebar only collects the API key and GitHub token — there is nowhere to
+    supply ANTHROPIC_BASE_URL or the model IDs. Without the base URL a proxy key
+    (e.g. an ``aero_live_...`` Aerolink key) is sent to api.anthropic.com, which
+    rejects it with 401 "API key is invalid".
+
+    Secrets are set in the app's Settings → Secrets panel as TOML. Every
+    top-level scalar is forwarded, so any Settings field can be configured this
+    way. Existing environment variables win, and .env is loaded afterwards, so
+    local runs keep their current precedence.
+    """
+    try:
+        secrets = st.secrets
+    except Exception:
+        # No secrets configured (normal for local runs) — nothing to do.
+        return
+    try:
+        for key, val in secrets.items():
+            if isinstance(val, (str, int, float, bool)) and key not in os.environ:
+                os.environ[str(key)] = str(val)
+    except Exception:
+        pass
+
+
 def _load_local_env() -> None:
     """Load ``app/.env`` into os.environ (without overwriting already-set vars).
 
@@ -59,6 +86,7 @@ def _load_local_env() -> None:
         pass
 
 
+_load_streamlit_secrets()
 _load_local_env()
 
 
