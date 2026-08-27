@@ -1417,8 +1417,11 @@ def main() -> None:
             st.stop()
 
         # Make config available to the backend before it imports/instantiates settings.
-        os.environ["ANTHROPIC_API_KEY"] = api_key
-        if github_token:
+        # Secrets (if present) take precedence over the sidebar, so cloud deploys with
+        # secrets configured don't get overwritten by a stale sidebar box.
+        if api_key and "ANTHROPIC_API_KEY" not in st.secrets:
+            os.environ["ANTHROPIC_API_KEY"] = api_key
+        if github_token and "GITHUB_TOKEN" not in st.secrets:
             os.environ["GITHUB_TOKEN"] = github_token
 
         try:
