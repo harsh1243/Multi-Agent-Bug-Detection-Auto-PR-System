@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛠️ Multi-Agent Bug Detection & Auto-PR System
+# Multi-Agent Bug Detection & Auto-PR System
 
 **Autonomous software maintenance via a 10-agent orchestrated pipeline with knowledge-graph-backed cross-file reasoning.**
 
@@ -16,28 +16,28 @@ Point it at a GitHub repository and it builds a semantic knowledge graph, hunts 
 
 ---
 
-## 📑 Table of Contents
+## Table of Contents
 
-- [Why this exists](#-why-this-exists)
-- [Key features](#-key-features)
-- [Workflow diagram](#-workflow-diagram)
-- [The 10 agents & 5 phases](#-the-10-agents--5-phases)
-- [Knowledge graph](#-knowledge-graph)
-- [Confidence scoring & approval gates](#-confidence-scoring--approval-gates)
-- [Tech stack](#-tech-stack)
-- [Project structure](#-project-structure)
-- [Getting started](#-getting-started)
-- [Configuration](#-configuration)
-- [Using a third-party LLM proxy](#-using-a-third-party-llm-proxy-lightning-ai-etc)
-- [How it works, step by step](#-how-it-works-step-by-step)
-- [What it detects & language support](#-what-it-detects--language-support)
-- [Limitations](#-limitations)
-- [Roadmap](#-roadmap)
-- [License](#-license)
+- [Why this exists](#why-this-exists)
+- [Key features](#key-features)
+- [Workflow diagram](#workflow-diagram)
+- [The 10 agents & 5 phases](#the-10-agents--5-phases)
+- [Knowledge graph](#knowledge-graph)
+- [Confidence scoring & approval gates](#confidence-scoring--approval-gates)
+- [Tech stack](#tech-stack)
+- [Project structure](#project-structure)
+- [Getting started](#getting-started)
+- [Configuration](#configuration)
+- [Using a third-party LLM proxy](#using-a-third-party-llm-proxy-lightning-ai-etc)
+- [How it works, step by step](#how-it-works-step-by-step)
+- [What it detects & language support](#what-it-detects--language-support)
+- [Limitations](#limitations)
+- [Roadmap](#roadmap)
+- [License](#license)
 
 ---
 
-## 🎯 Why this exists
+## Why this exists
 
 Existing auto-fix tools (Semgrep Autofix, Patchwork, CodeRabbit) analyse each file **in isolation**. They can't answer the questions a senior engineer asks instinctively:
 
@@ -50,29 +50,29 @@ This system answers all four by reasoning **across files** on a knowledge graph,
 
 ---
 
-## ✨ Key features
+## Key features
 
 | Capability | What it does |
 |---|---|
-| 🔍 **LLM Bug Hunter** | Two-stage discovery — cheap **Haiku** triages every source file, strong **Sonnet** confirms real defects with cited evidence and a concrete fix. Finds genuine bugs, not just "function is long". |
-| 🕸️ **Knowledge graph** | A `networkx` directed graph of files, functions, classes, API endpoints, DB models & calls — with **imports resolved to real file→file edges** — the backbone for cross-file reasoning and blast-radius analysis. |
-| 🧭 **Cross-file root cause & fixes** | Import-resolved dependency graph + data-flow tracing find where a bug *originates* — and a patch can edit the **root-cause file**, not just where the symptom surfaces. |
-| 🩹 **Surgical, multi-file patches** | Anchored `SEARCH/REPLACE` edits change only what they must — **no whole-file rewrites** — and a single fix can span several files (symptom + root cause) in one PR, with a real unified diff. |
-| ✅ **Validated fixes** | Four gates: AST syntax → pytest + bandit → regression (blast-radius) → differential security. Nothing ships that fails. |
-| 📦 **One PR per file** | All of a file's issues are fixed and shipped together — no flood of near-duplicate PRs. |
-| 🎚️ **Confidence scoring** | A 5-signal composite (0–100%) drives auto-merge eligibility vs. mandatory human review. |
-| 🚦 **Approval gates** | Critical-path or low-confidence changes are opened as drafts requiring human sign-off. |
-| 🧠 **Repository memory** | ChromaDB stores past fixes; similar future bugs get a confidence boost (optional, degrades gracefully). |
-| 🫧 **Interactive bubble map** | Explore the repo as a force-directed graph — click any file to light up its blast radius. |
+| **LLM Bug Hunter** | Two-stage discovery — cheap **Haiku** triages every source file, strong **Sonnet** confirms real defects with cited evidence and a concrete fix. Finds genuine bugs, not just "function is long". |
+| **Knowledge graph** | A `networkx` directed graph of files, functions, classes, API endpoints, DB models & calls — with **imports resolved to real file→file edges** — the backbone for cross-file reasoning and blast-radius analysis. |
+| **Cross-file root cause & fixes** | Import-resolved dependency graph + data-flow tracing find where a bug *originates* — and a patch can edit the **root-cause file**, not just where the symptom surfaces. |
+| **Surgical, multi-file patches** | Anchored `SEARCH/REPLACE` edits change only what they must — **no whole-file rewrites** — and a single fix can span several files (symptom + root cause) in one PR, with a real unified diff. |
+| **Validated fixes** | Four gates: AST syntax → pytest + bandit → regression (blast-radius) → differential security. Nothing ships that fails. |
+| **One PR per file** | All of a file's issues are fixed and shipped together — no flood of near-duplicate PRs. |
+| **Confidence scoring** | A 5-signal composite (0–100%) drives auto-merge eligibility vs. mandatory human review. |
+| **Approval gates** | Critical-path or low-confidence changes are opened as drafts requiring human sign-off. |
+| **Repository memory** | ChromaDB stores past fixes; similar future bugs get a confidence boost (optional, degrades gracefully). |
+| **Interactive bubble map** | Explore the repo as a force-directed graph — click any file to light up its blast radius. |
 
 ---
 
-## 🔄 Workflow diagram
+## Workflow diagram
 
 ```mermaid
 flowchart TB
     START(["GitHub repo URL"]) --> ORC
-    ORC["🧠 Orchestrator — orchestrator.py<br/>sequencing · retries · partial-failure handling"]
+    ORC["Orchestrator — orchestrator.py<br/>sequencing · retries · partial-failure handling"]
     ORC --> CLONE["Phase 0 · Acquisition<br/>shallow clone into a disposable workdir"]
 
     CLONE --> P1_START{{"Phase 1 Start<br/>asyncio.gather spawns 3 parallel branches"}}
@@ -171,7 +171,7 @@ Agents 2 & 3 are independent — they only scan dependency files and source code
 
 ---
 
-## 🧩 The 10 agents & 5 phases
+## The 10 agents & 5 phases
 
 Numbering matches the workflow diagram above.
 
@@ -194,7 +194,7 @@ and graceful partial-failure handling for all five phases.
 
 ---
 
-## 🕸️ Knowledge graph
+## Knowledge graph
 
 The graph (a `networkx.DiGraph`) is what makes cross-file reasoning possible.
 
@@ -217,7 +217,7 @@ Imports are **resolved to the actual repository files they reference**, so file�
 
 ---
 
-## 🎚️ Confidence scoring & approval gates
+## Confidence scoring & approval gates
 
 Each fix earns a weighted composite score (0–100%):
 
@@ -240,7 +240,7 @@ Each fix earns a weighted composite score (0–100%):
 
 ---
 
-## 🧰 Tech stack
+## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -256,7 +256,7 @@ Each fix earns a weighted composite score (0–100%):
 
 ---
 
-## 📁 Project structure
+## Project structure
 
 ```
 app/
@@ -291,7 +291,7 @@ app/
 
 ---
 
-## 🚀 Getting started
+## Getting started
 
 ### Prerequisites
 - **Python 3.11**
@@ -321,13 +321,13 @@ GITHUB_TOKEN=ghp_...            # optional
 ```bash
 streamlit run streamlit_app.py
 ```
-Open http://localhost:8501, paste a repository URL, and click **🫧 Build Repo Map** (no key needed) or **▶️ Run Pipeline**.
+Open http://localhost:8501, paste a repository URL, and click **Build Repo Map** (no key needed) or **Run Pipeline**.
 
 > Some deep-analysis steps shell out to external CLIs (`bandit`, `pytest`, `eslint`, `pip-audit`). Install the ones you need; the app runs without them and simply skips those checks.
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 All settings live in `backend/config.py` and can be overridden via `.env` / environment variables.
 
@@ -349,7 +349,7 @@ All settings live in `backend/config.py` and can be overridden via `.env` / envi
 
 ---
 
-## 🔌 Using a third-party LLM proxy (Lightning AI, etc.)
+## Using a third-party LLM proxy (Lightning AI, etc.)
 
 The app talks to the LLM through the Anthropic SDK, so any Anthropic-compatible endpoint works. Set the base URL, key, and model(s) in `.env`:
 
@@ -365,7 +365,7 @@ The Streamlit app loads `.env` into the environment at startup, so no keys need 
 
 ---
 
-## 🧠 How it works, step by step
+## How it works, step by step
 
 1. **Clone** the target repo into a temp directory.
 2. **Discovery (parallel):** the Repo Mapper builds the knowledge graph; the Dependency Analyzer scans for CVEs; the Bug Hunter triages every file with Haiku and confirms real defects with Sonnet.
@@ -379,7 +379,7 @@ Throughout, the **Orchestrator** streams every agent event live to the Streamlit
 
 ---
 
-## 🐛 What it detects & language support
+## What it detects & language support
 
 ### Error types
 
@@ -424,12 +424,12 @@ Throughout, the **Orchestrator** streams every agent event live to the Streamlit
 
 | Language | LLM Bug Hunter | Static Analysis | Dependency Scan | Symbol Graph |
 |---|---|---|---|---|
-| **Python** | ✅ Full | ✅ Bandit | ✅ pip-audit, safety | ✅ Full AST — functions, classes, imports, call chains |
-| **JavaScript** | ✅ Full | ✅ ESLint | ✅ npm audit | ⚠️ File-level only |
-| **TypeScript** | ✅ Full | ✅ ESLint | ✅ npm audit | ⚠️ File-level only |
-| **JSX / TSX** | ✅ Full | ✅ ESLint | ✅ npm audit | ⚠️ File-level only |
-| **C / C++** | ✅ LLM only | ❌ | ❌ | ⚠️ `#include` edges only |
-| **Go / Rust / Java** | ❌ | ❌ | ❌ | ❌ |
+| **Python** | Full | Bandit | pip-audit, safety | Full AST — functions, classes, imports, call chains |
+| **JavaScript** | Full | ESLint | npm audit | File-level only |
+| **TypeScript** | Full | ESLint | npm audit | File-level only |
+| **JSX / TSX** | Full | ESLint | npm audit | File-level only |
+| **C / C++** | LLM only | | | `#include` edges only |
+| **Go / Rust / Java** | None | None | None | None |
 
 **What the tiers mean:**
 
@@ -439,7 +439,7 @@ Throughout, the **Orchestrator** streams every agent event live to the Streamlit
 
 ---
 
-## ⚠️ Limitations
+## Limitations
 
 - **Language support:** optimised for **Python** (AST, pytest, bandit); **JS/TS** is secondary (ESLint, npm audit). Java/Go/Rust would need extra parsers.
 - **Tests required for high confidence:** without a test suite, confidence is capped at 60% and every PR needs human approval.
@@ -448,7 +448,7 @@ Throughout, the **Orchestrator** streams every agent event live to the Streamlit
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
 - Sandboxed Docker execution for full CI parity
 - Auto-merge for confidence ≥ 95% on non-critical paths
@@ -458,7 +458,7 @@ Throughout, the **Orchestrator** streams every agent event live to the Streamlit
 
 ---
 
-## 📄 License
+## License
 
 Released under the **MIT License**. See [`LICENSE`](LICENSE).
 
