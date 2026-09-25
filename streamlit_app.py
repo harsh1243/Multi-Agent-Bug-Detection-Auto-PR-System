@@ -148,191 +148,573 @@ def _pill(text: str, color: str, filled: bool = False) -> str:
             f'border:1px solid {color}55;">{_esc(text)}</span>')
 
 
+# --------------------------------------------------------------------------- #
+# Design tokens (single source of truth for colors, type, spacing)
+# --------------------------------------------------------------------------- #
+# Surfaces: layered cool-dark with a hint of warmth in accents.
+_BG_BASE = "#0a0e1a"
+_BG_PANEL = "#10172a"
+_BG_PANEL_2 = "#0d1424"
+_BG_INPUT = "#0f1729"
+_BORDER = "#1f2a44"
+_BORDER_STRONG = "#293656"
+_DIVIDER = "#1a2540"
+
+# Foregrounds (purpose-driven, not decorative).
+_TEXT = "#e7ecf6"
+_TEXT_MUTED = "#8a96b3"
+_TEXT_DIM = "#5d6885"
+_TEXT_FAINT = "#475068"
+
+# Primary: indigo→violet (used by everything interactive).
+_PRIMARY = "#6366f1"
+_PRIMARY_2 = "#8b5cf6"
+_PRIMARY_SOFT = "rgba(99,102,241,0.14)"
+
+# Semantic palette — used by severity, classes, gates.
+_SEM_SUCCESS = "#22c55e"
+_SEM_WARN = "#f59e0b"
+_SEM_DANGER = "#ef4444"
+_SEM_INFO = "#38bdf8"
+
+# Typography stack (system fonts only — no external fetches).
+_FONT_SANS = "'Inter','Segoe UI','SF Pro Text',system-ui,-apple-system,Helvetica,Arial,sans-serif"
+_FONT_MONO = "'JetBrains Mono','SF Mono',ui-monospace,Consolas,Menlo,monospace"
+
+
 def _inject_css() -> None:
     st.markdown(
-        """
+        f"""
         <style>
-          footer {visibility: hidden;}
-          header[data-testid="stHeader"] {background:transparent;}
-          [data-testid="stAppViewContainer"] {
+          /* ─── Reset + base ─────────────────────────────────────────── */
+          html, body, [data-testid="stAppViewContainer"] {{
+            font-family: {_FONT_SANS};
+            color: {_TEXT};
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+          }}
+          [data-testid="stAppViewContainer"] {{
+            background: {_BG_BASE};
+            background-image:
+              radial-gradient(1100px 600px at 8% -10%, rgba(99,102,241,0.10), transparent 60%),
+              radial-gradient(900px 500px at 100% 0%, rgba(139,92,246,0.08), transparent 60%);
+            background-attachment: fixed;
+          }}
+          .block-container {{ padding-top: 1.25rem; padding-bottom: 4rem; max-width: 1400px; }}
+
+          /* Hide streamlit chrome we don't want. */
+          footer {{ visibility: hidden; }}
+          header[data-testid="stHeader"] {{ background: transparent; }}
+          #MainMenu {{ visibility: hidden; }}
+
+          /* ─── Typography ──────────────────────────────────────────── */
+          h1, h2, h3, h4 {{ letter-spacing: -0.018em; color: {_TEXT}; font-weight: 750; }}
+          h1 {{ font-size: 1.75rem; line-height: 1.15; margin: 0; }}
+          h2 {{ font-size: 1.18rem; line-height: 1.2; margin: 0; }}
+          h3 {{ font-size: 1.0rem;  line-height: 1.25; margin: 0; }}
+          p, li, span, div {{ color: {_TEXT}; }}
+          [data-testid="stCaptionContainer"] {{ color: {_TEXT_MUTED}; font-size: 0.78rem; }}
+          small, .small {{ font-size: 0.74rem; color: {_TEXT_MUTED}; }}
+
+          /* ─── Borders & containers ───────────────────────────────── */
+          div[data-testid="stVerticalBlockBorderWrapper"] {{
+            border: 1px solid {_BORDER} !important;
+            border-radius: 14px !important;
+            background: linear-gradient(180deg, {_BG_PANEL} 0%, {_BG_PANEL_2} 100%);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 24px rgba(0,0,0,0.20);
+          }}
+
+          /* ─── Sidebar ─────────────────────────────────────────────── */
+          section[data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, #0c1224 0%, #080c18 100%);
+            border-right: 1px solid {_BORDER};
+          }}
+          section[data-testid="stSidebar"] .block-container {{ padding-top: 1.1rem; }}
+          section[data-testid="stSidebar"] h1, h2, h3 {{ color: {_TEXT}; }}
+          section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {{ color: {_TEXT_MUTED}; }}
+
+          /* ─── Inputs ─────────────────────────────────────────────── */
+          [data-testid="stTextInput"] input,
+          [data-testid="stTextArea"] textarea,
+          [data-testid="stNumberInput"] input {{
+            background: {_BG_INPUT} !important;
+            border: 1px solid {_BORDER_STRONG} !important;
+            border-radius: 9px !important;
+            color: {_TEXT} !important;
+            font-family: {_FONT_SANS};
+            font-size: 0.86rem;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+          }}
+          [data-testid="stTextInput"] input:focus,
+          [data-testid="stTextArea"] textarea:focus {{
+            border-color: {_PRIMARY} !important;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.18) !important;
+          }}
+          [data-testid="stTextInput"] label,
+          [data-testid="stTextArea"] label {{ color: {_TEXT_MUTED}; font-size: 0.78rem; font-weight: 600; }}
+
+          /* ─── Buttons ─────────────────────────────────────────────── */
+          .stButton > button {{
+            border-radius: 9px !important;
+            font-weight: 650 !important;
+            font-size: 0.86rem !important;
+            min-height: 2.5rem !important;
+            border: 1px solid {_BORDER_STRONG} !important;
+            background: linear-gradient(180deg, #1a2440 0%, #131c33 100%) !important;
+            color: {_TEXT} !important;
+            transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease !important;
+          }}
+          .stButton > button:hover {{
+            transform: translateY(-1px);
+            border-color: {_PRIMARY} !important;
+            box-shadow: 0 6px 18px rgba(99,102,241,0.22);
+          }}
+          .stButton > button:active {{ transform: translateY(0); }}
+          .stButton > button[kind="primary"] {{
+            background: linear-gradient(135deg, {_PRIMARY} 0%, {_PRIMARY_2} 100%) !important;
+            border-color: transparent !important;
+            color: white !important;
+            box-shadow: 0 8px 22px rgba(99,102,241,0.35);
+          }}
+          .stButton > button[kind="primary"]:hover {{
+            box-shadow: 0 10px 28px rgba(99,102,241,0.45);
+          }}
+          .stDownloadButton > button {{ border-radius: 9px !important; }}
+
+          /* ─── Tabs ────────────────────────────────────────────────── */
+          [data-baseweb="tab-list"] {{
+            gap: 4px;
+            background: transparent;
+            padding: 4px;
+            border-bottom: 1px solid {_BORDER};
+            border-radius: 0;
+          }}
+          [data-baseweb="tab"] {{
+            height: 38px;
+            border-radius: 8px;
+            padding: 0 14px;
+            color: {_TEXT_MUTED};
+            font-weight: 600;
+            font-size: 0.84rem;
+            background: transparent;
+            border: 1px solid transparent;
+          }}
+          [data-baseweb="tab"]:hover {{ color: {_TEXT}; background: rgba(255,255,255,0.03); }}
+          [data-baseweb="tab"][aria-selected="true"] {{
+            background: {_PRIMARY_SOFT};
+            color: #c7d2fe;
+            border-color: rgba(99,102,241,0.30);
+          }}
+          [data-baseweb="tab-highlight"] {{ background: transparent; }}
+          [data-baseweb="tab-border"] {{ display: none; }}
+
+          /* ─── Expanders ──────────────────────────────────────────── */
+          div[data-testid="stExpander"] {{
+            border: 1px solid {_BORDER} !important;
+            border-radius: 10px !important;
+            background: rgba(15,23,41,0.5) !important;
+          }}
+          div[data-testid="stExpander"] summary {{
+            color: {_TEXT} !important;
+            font-weight: 600;
+            font-size: 0.84rem;
+          }}
+
+          /* ─── Code blocks ─────────────────────────────────────────── */
+          code, pre, .stCode {{ font-family: {_FONT_MONO}; font-size: 0.82rem; }}
+          pre, [data-testid="stCode"] pre {{
+            background: #06091a !important;
+            border: 1px solid {_BORDER};
+            border-radius: 10px !important;
+          }}
+
+          /* ─── Alerts ──────────────────────────────────────────────── */
+          [data-testid="stAlert"] {{
+            border-radius: 10px;
+            border: 1px solid {_BORDER};
+          }}
+
+          /* ─── Scrollbars ─────────────────────────────────────────── */
+          ::-webkit-scrollbar {{ width: 10px; height: 10px; }}
+          ::-webkit-scrollbar-track {{ background: transparent; }}
+          ::-webkit-scrollbar-thumb {{
+            background: #1c2742;
+            border-radius: 999px;
+            border: 2px solid {_BG_BASE};
+          }}
+          ::-webkit-scrollbar-thumb:hover {{ background: #2a375a; }}
+
+          /* ─── Hero ───────────────────────────────────────────────── */
+          .hero {{
+            position: relative;
+            overflow: hidden;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 38%, #5b21b6 72%, #7c3aed 100%);
+            border: 1px solid rgba(167,139,250,0.28);
+            border-radius: 18px;
+            padding: 28px 32px;
+            margin-bottom: 22px;
+            box-shadow: 0 18px 48px rgba(76,29,149,0.30);
+          }}
+          .hero::before {{
+            content: '';
+            position: absolute; inset: 0;
             background:
-              radial-gradient(circle at 15% 0%, rgba(99,102,241,.12), transparent 28rem),
-              radial-gradient(circle at 92% 8%, rgba(168,85,247,.10), transparent 24rem),
-              #0b0f1a;
-          }
-          .block-container {padding-top: 1.35rem; padding-bottom: 4rem; max-width: 1380px;}
+              radial-gradient(400px 220px at 88% -20%, rgba(255,255,255,0.16), transparent 60%),
+              radial-gradient(280px 180px at 12% 130%, rgba(99,102,241,0.30), transparent 60%);
+            pointer-events: none;
+          }}
+          .hero::after {{
+            content: '';
+            position: absolute;
+            width: 240px; height: 240px;
+            border-radius: 50%;
+            right: -80px; top: -130px;
+            background: rgba(255,255,255,0.06);
+            pointer-events: none;
+          }}
+          .hero .hero-row {{ position: relative; z-index: 1; display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }}
+          .hero .hero-mark {{
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.20), rgba(255,255,255,0.06));
+            border: 1px solid rgba(255,255,255,0.20);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.25rem; color: white;
+            flex-shrink: 0;
+            backdrop-filter: blur(4px);
+          }}
+          .hero .hero-copy {{ flex: 1; min-width: 220px; }}
+          .hero .hero-kicker {{
+            display: inline-flex; align-items: center; gap: 8px;
+            color: #ddd6fe;
+            font-size: 0.70rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.4px;
+            margin-bottom: 8px;
+          }}
+          .hero .hero-kicker::before {{
+            content: ''; width: 7px; height: 7px;
+            border-radius: 50%; background: #86efac;
+            box-shadow: 0 0 10px #4ade80;
+          }}
+          .hero h1 {{
+            margin: 0; font-size: 1.85rem; color: white;
+            font-weight: 800; letter-spacing: -0.6px; line-height: 1.1;
+          }}
+          .hero p {{
+            margin: 10px 0 0; color: #e9e5ff; opacity: 0.92;
+            font-size: 0.92rem; max-width: 760px; line-height: 1.55;
+          }}
+          .hero .hero-pills {{ margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }}
+          .hero .hero-pills span {{
+            background: rgba(255,255,255,0.14); color: #f5f3ff;
+            padding: 5px 12px; border-radius: 999px;
+            font-size: 0.74rem; font-weight: 600;
+            border: 1px solid rgba(255,255,255,0.18);
+            backdrop-filter: blur(4px);
+          }}
 
-          h1,h2,h3 {letter-spacing:-.025em;}
-          [data-testid="stCaptionContainer"] {color:#7f8aa3;}
-          div[data-testid="stVerticalBlockBorderWrapper"] {
-            border-color:#232b40 !important;border-radius:16px !important;
-            background:linear-gradient(145deg,rgba(20,26,42,.94),rgba(13,18,32,.94));
-            box-shadow:0 12px 32px rgba(0,0,0,.12);
-          }
+          /* ─── Section header ─────────────────────────────────────── */
+          .section-title {{ display: flex; align-items: flex-end; gap: 18px; margin: 28px 0 14px; }}
+          .section-title .copy {{ flex: 1; }}
+          .section-title .eyebrow {{
+            color: #818cf8; font-size: 0.69rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1.4px; margin-bottom: 5px;
+          }}
+          .section-title h2 {{ color: {_TEXT}; font-size: 1.18rem; line-height: 1.2; margin: 0; }}
+          .section-title p {{ color: {_TEXT_MUTED}; font-size: 0.82rem; margin: 5px 0 0; max-width: 760px; line-height: 1.5; }}
 
-          .section-title {display:flex;align-items:flex-end;gap:18px;margin:26px 0 13px;}
-          .section-title .copy {flex:1;}
-          .section-title .eyebrow {color:#818cf8;font-size:.69rem;font-weight:800;
-            text-transform:uppercase;letter-spacing:1.4px;margin-bottom:5px;}
-          .section-title h2 {color:#eef2ff;font-size:1.28rem;line-height:1.15;margin:0;}
-          .section-title p {color:#8b95ad;font-size:.82rem;margin:5px 0 0;max-width:760px;}
+          /* ─── Panels (used inside main area) ─────────────────────── */
+          .panel {{
+            background: linear-gradient(180deg, {_BG_PANEL} 0%, {_BG_PANEL_2} 100%);
+            border: 1px solid {_BORDER};
+            border-radius: 14px;
+            padding: 18px 20px;
+            box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset;
+          }}
+          .panel-title {{
+            font-size: 0.74rem; color: {_TEXT_MUTED};
+            font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.6px; margin-bottom: 12px;
+          }}
 
-          .panel {background:linear-gradient(145deg,rgba(20,26,42,.96),rgba(13,18,32,.96));
-            border:1px solid #232b40;border-radius:16px;padding:18px 20px;
-            box-shadow:0 14px 35px rgba(0,0,0,.14);}
-          .panel-title {font-size:.82rem;color:#dce3f5;font-weight:800;margin-bottom:12px;}
+          /* ─── Pills / badges ─────────────────────────────────────── */
+          .pill {{
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.71rem; font-weight: 650;
+            white-space: nowrap;
+            display: inline-block;
+            letter-spacing: 0.2px;
+            line-height: 1.5;
+          }}
 
-          .feature-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-            gap:12px;margin:12px 0 18px;}
-          .feature {background:linear-gradient(145deg,#141a2a,#101626);border:1px solid #232b40;
-            border-radius:15px;padding:17px 18px;min-height:128px;}
-          .feature .f-icon {font-size:1.25rem;width:38px;height:38px;display:flex;align-items:center;
-            justify-content:center;border-radius:11px;background:#6366f122;margin-bottom:12px;}
-          .feature .f-title {color:#e6eaf3;font-size:.9rem;font-weight:800;}
-          .feature .f-copy {color:#8f9ab2;font-size:.76rem;line-height:1.55;margin-top:6px;}
+          /* ─── Metric cards ───────────────────────────────────────── */
+          .mcards {{ display: flex; gap: 12px; flex-wrap: wrap; margin: 2px 0 18px; }}
+          .mcard {{
+            flex: 1; min-width: 150px;
+            background: linear-gradient(180deg, {_BG_PANEL} 0%, {_BG_PANEL_2} 100%);
+            border: 1px solid {_BORDER};
+            border-radius: 12px;
+            padding: 14px 16px;
+            position: relative; overflow: hidden;
+          }}
+          .mcard::after {{
+            content: ''; position: absolute;
+            left: 0; top: 0; bottom: 0; width: 2px;
+            background: {_PRIMARY};
+            opacity: 0.7;
+          }}
+          .mcard .lbl {{
+            color: {_TEXT_MUTED};
+            font-size: 0.71rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.6px;
+          }}
+          .mcard .val {{
+            color: {_TEXT}; font-size: 1.6rem;
+            font-weight: 750; margin-top: 6px; line-height: 1;
+            font-feature-settings: "tnum" 1;
+          }}
+          .mcard .val.accent {{ color: #a5b4fc; }}
+          .mcard .sub {{ color: {_TEXT_DIM}; font-size: 0.72rem; margin-top: 4px; }}
 
-          .workflow {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-top:12px;}
-          .wf {position:relative;background:#111728;border:1px solid #222b43;border-radius:13px;
-            padding:14px 13px;min-height:104px;}
-          .wf:not(:last-child):after {content:'→';position:absolute;right:-11px;top:37px;color:#58627a;
-            z-index:3;font-size:.8rem;}
-          .wf .num {font-size:.64rem;font-weight:900;color:#818cf8;letter-spacing:1px;}
-          .wf .name {font-size:.78rem;font-weight:800;color:#dce3f5;margin-top:7px;}
-          .wf .desc {font-size:.67rem;color:#78849d;margin-top:5px;line-height:1.35;}
+          /* ─── Finding / PR card headers ──────────────────────────── */
+          .cardhead {{
+            display: flex; align-items: center; gap: 8px;
+            flex-wrap: wrap; margin-bottom: 4px;
+          }}
+          .cardhead .title {{
+            font-weight: 650; font-size: 0.98rem; color: {_TEXT};
+          }}
+          .cardhead .spacer {{ flex: 1; }}
+          .fileref {{
+            font-family: {_FONT_MONO}; font-size: 0.74rem; color: {_TEXT_MUTED};
+            background: #0a0f1e; padding: 3px 9px;
+            border-radius: 6px; border: 1px solid {_BORDER};
+          }}
 
-          .dist-list {display:flex;flex-direction:column;gap:11px;}
-          .dist-row {display:grid;grid-template-columns:120px 1fr 34px;gap:11px;align-items:center;}
-          .dist-label {color:#aeb7ca;font-size:.73rem;font-weight:700;white-space:nowrap;overflow:hidden;
-            text-overflow:ellipsis;}
-          .dist-track {height:8px;border-radius:999px;background:#222a3e;overflow:hidden;}
-          .dist-fill {height:100%;border-radius:999px;box-shadow:0 0 12px currentColor;}
-          .dist-value {color:#dbe2f1;text-align:right;font-size:.72rem;font-weight:800;}
+          /* ─── Confidence bar ─────────────────────────────────────── */
+          .cbar {{ height: 8px; border-radius: 999px; background: #1a2440; overflow: hidden; }}
+          .cbar > div {{ height: 100%; border-radius: 999px; transition: width 0.4s ease; }}
 
-          .health-grid {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;}
-          .health {background:#111728;border:1px solid #222b43;border-radius:12px;padding:12px;}
-          .health .h-top {display:flex;align-items:center;justify-content:space-between;gap:6px;}
-          .health .h-name {font-size:.68rem;color:#8f9ab2;font-weight:800;text-transform:uppercase;
-            letter-spacing:.5px;}
-          .health .h-state {font-size:.72rem;font-weight:800;margin-top:7px;}
-          .health.pass {border-color:#22c55e44;background:#102019;}
-          .health.pass .h-state {color:#4ade80;}
-          .health.warn {border-color:#f59e0b44;background:#211b10;}
-          .health.warn .h-state {color:#fbbf24;}
-          .health.fail {border-color:#ef444444;background:#241315;}
-          .health.fail .h-state {color:#fb7185;}
+          /* ─── Feature grid (How it works) ───────────────────────── */
+          .feature-grid {{
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px; margin: 12px 0 18px;
+          }}
+          .feature {{
+            background: linear-gradient(180deg, {_BG_PANEL} 0%, {_BG_PANEL_2} 100%);
+            border: 1px solid {_BORDER};
+            border-radius: 12px;
+            padding: 18px 18px;
+            min-height: 132px;
+            transition: border-color 0.15s ease, transform 0.15s ease;
+          }}
+          .feature:hover {{ border-color: rgba(99,102,241,0.35); transform: translateY(-1px); }}
+          .feature .f-icon {{
+            font-size: 1.15rem; width: 36px; height: 36px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 10px; background: {_PRIMARY_SOFT};
+            color: #c7d2fe; margin-bottom: 12px;
+          }}
+          .feature .f-title {{ color: {_TEXT}; font-size: 0.92rem; font-weight: 700; }}
+          .feature .f-copy {{ color: {_TEXT_MUTED}; font-size: 0.78rem; line-height: 1.55; margin-top: 6px; }}
 
-          .empty-state {text-align:center;padding:34px 24px;border:1px dashed #2a3550;border-radius:16px;
-            background:rgba(17,23,40,.68);}
-          .empty-state .e-icon {font-size:1.8rem;margin-bottom:8px;}
-          .empty-state .e-title {font-size:.92rem;color:#e1e7f4;font-weight:800;}
-          .empty-state .e-copy {font-size:.77rem;color:#818ba2;max-width:520px;margin:7px auto 0;line-height:1.55;}
+          /* ─── Workflow steps ─────────────────────────────────────── */
+          .workflow {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }}
+          .wf {{
+            position: relative;
+            background: {_BG_PANEL_2};
+            border: 1px solid {_BORDER};
+            border-radius: 11px;
+            padding: 13px 13px;
+            min-height: 96px;
+          }}
+          .wf:not(:last-child)::after {{
+            content: '→'; position: absolute; right: -10px; top: 50%;
+            transform: translateY(-50%); color: {_TEXT_DIM};
+            z-index: 3; font-size: 0.85rem;
+          }}
+          .wf .num {{ font-size: 0.62rem; font-weight: 800; color: #818cf8; letter-spacing: 1px; }}
+          .wf .name {{ font-size: 0.80rem; font-weight: 700; color: {_TEXT}; margin-top: 6px; }}
+          .wf .desc {{ font-size: 0.69rem; color: {_TEXT_MUTED}; margin-top: 4px; line-height: 1.35; }}
 
-          .connection-row {display:flex;flex-direction:column;gap:7px;margin:7px 0 3px;}
-          .connection {display:flex;align-items:center;gap:9px;background:#111728;border:1px solid #202940;
-            border-radius:10px;padding:8px 10px;}
-          .connection .dot {width:8px;height:8px;border-radius:50%;flex:none;}
-          .connection .c-name {font-size:.72rem;color:#aeb8cc;font-weight:700;flex:1;}
-          .connection .c-state {font-size:.65rem;color:#69758e;font-weight:700;}
+          /* ─── Distribution bars (severity / class) ──────────────── */
+          .dist-list {{ display: flex; flex-direction: column; gap: 10px; }}
+          .dist-row {{
+            display: grid;
+            grid-template-columns: 110px 1fr 38px;
+            gap: 11px; align-items: center;
+          }}
+          .dist-label {{
+            color: {_TEXT_MUTED}; font-size: 0.74rem; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            text-transform: capitalize;
+          }}
+          .dist-track {{ height: 7px; border-radius: 999px; background: #1a2440; overflow: hidden; }}
+          .dist-fill {{ height: 100%; border-radius: 999px; box-shadow: 0 0 10px currentColor; }}
+          .dist-value {{ color: {_TEXT}; text-align: right; font-size: 0.74rem; font-weight: 700; }}
 
-          @media (max-width:900px) {
-            .feature-grid {grid-template-columns:1fr;}
-            .workflow {grid-template-columns:1fr 1fr;}
-            .wf:after {display:none;}
-            .health-grid {grid-template-columns:1fr 1fr;}
-          }
+          /* ─── Health (validation) tiles ──────────────────────────── */
+          .health-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }}
+          .health {{
+            background: {_BG_PANEL_2};
+            border: 1px solid {_BORDER};
+            border-radius: 11px;
+            padding: 12px 13px;
+            transition: border-color 0.15s ease;
+          }}
+          .health .h-top {{ display: flex; align-items: center; justify-content: space-between; gap: 6px; }}
+          .health .h-name {{
+            color: {_TEXT_MUTED}; font-size: 0.68rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+          }}
+          .health .h-state {{ font-size: 0.76rem; font-weight: 650; margin-top: 6px; color: {_TEXT}; }}
+          .health.pass {{ border-color: rgba(34,197,94,0.30); background: linear-gradient(180deg, rgba(34,197,94,0.06), transparent); }}
+          .health.pass .h-state {{ color: #4ade80; }}
+          .health.warn {{ border-color: rgba(245,158,11,0.30); background: linear-gradient(180deg, rgba(245,158,11,0.06), transparent); }}
+          .health.warn .h-state {{ color: #fbbf24; }}
+          .health.fail {{ border-color: rgba(239,68,68,0.30); background: linear-gradient(180deg, rgba(239,68,68,0.06), transparent); }}
+          .health.fail .h-state {{ color: #fb7185; }}
 
-          .pill {padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:700;
-                 white-space:nowrap;display:inline-block;letter-spacing:.2px;}
+          /* ─── Empty state ────────────────────────────────────────── */
+          .empty-state {{
+            text-align: center; padding: 36px 24px;
+            border: 1px dashed {_BORDER_STRONG};
+            border-radius: 14px;
+            background: rgba(15,23,41,0.55);
+          }}
+          .empty-state .e-icon {{ font-size: 1.6rem; margin-bottom: 8px; opacity: 0.85; }}
+          .empty-state .e-title {{ font-size: 0.94rem; color: {_TEXT}; font-weight: 700; }}
+          .empty-state .e-copy {{ font-size: 0.78rem; color: {_TEXT_MUTED}; max-width: 520px; margin: 7px auto 0; line-height: 1.55; }}
 
-          .hero {position:relative;overflow:hidden;
-                 background:linear-gradient(125deg,#312e81 0%,#5b21b6 50%,#7e22ce 100%);
-                 border:1px solid #a78bfa55;border-radius:20px;padding:27px 30px;margin-bottom:18px;
-                 box-shadow:0 18px 48px rgba(76,29,149,.28);}
-          .hero:after {content:'';position:absolute;width:330px;height:330px;border-radius:50%;
-                 right:-90px;top:-190px;background:rgba(255,255,255,.11);filter:blur(2px);}
-          .hero .hero-kicker {display:inline-flex;align-items:center;gap:7px;color:#ddd6fe;
-                 font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:1.4px;
-                 margin-bottom:8px;}
-          .hero .hero-kicker:before {content:'';width:7px;height:7px;border-radius:50%;
-                 background:#86efac;box-shadow:0 0 10px #4ade80;}
-          .hero h1 {margin:0;font-size:1.9rem;color:#fff;font-weight:850;letter-spacing:-.7px;}
-          .hero p {margin:9px 0 0;color:#e9e5ff;font-size:.9rem;max-width:850px;line-height:1.55;}
-          .hero .pills {margin-top:15px;display:flex;gap:8px;flex-wrap:wrap;}
-          .hero .pills span {background:rgba(255,255,255,.16);color:#fff;padding:4px 12px;
-                 border-radius:999px;font-size:.72rem;font-weight:600;}
+          /* ─── Connection rows in sidebar ─────────────────────────── */
+          .connection-row {{ display: flex; flex-direction: column; gap: 7px; margin: 8px 0 4px; }}
+          .connection {{
+            display: flex; align-items: center; gap: 9px;
+            background: {_BG_PANEL_2}; border: 1px solid {_BORDER};
+            border-radius: 9px; padding: 8px 11px;
+          }}
+          .connection .dot {{ width: 8px; height: 8px; border-radius: 50%; flex: none; }}
+          .connection .c-name {{ font-size: 0.74rem; color: {_TEXT}; font-weight: 600; flex: 1; }}
+          .connection .c-state {{ font-size: 0.68rem; color: {_TEXT_MUTED}; font-weight: 600; }}
 
-          .mcards {display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 16px;}
-          .mcard {flex:1;min-width:155px;background:#141a2a;border:1px solid #232b40;
-                  border-radius:14px;padding:15px 18px;}
-          .mcard .lbl {color:#8b95ad;font-size:.72rem;font-weight:700;
-                  text-transform:uppercase;letter-spacing:.6px;}
-          .mcard .val {color:#e6eaf3;font-size:1.7rem;font-weight:800;margin-top:5px;line-height:1;}
-          .mcard .val.accent {color:#a5b4fc;}
+          /* ─── Sidebar brand mark ─────────────────────────────────── */
+          .sb-brand {{ display: flex; align-items: center; gap: 11px; margin-bottom: 6px; }}
+          .sb-brand .mark {{
+            width: 34px; height: 34px;
+            border-radius: 9px;
+            background: linear-gradient(135deg, {_PRIMARY}, {_PRIMARY_2});
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 1.0rem;
+            box-shadow: 0 6px 16px rgba(99,102,241,0.35);
+          }}
+          .sb-brand .b-title {{ font-weight: 750; font-size: 1.0rem; line-height: 1.1; color: {_TEXT}; }}
+          .sb-brand .b-sub {{ color: {_TEXT_DIM}; font-size: 0.66rem; margin-top: 3px; letter-spacing: 0.6px; text-transform: uppercase; }}
+          .sb-section-label {{
+            color: {_TEXT_MUTED}; font-size: 0.70rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.8px;
+            margin: 14px 0 6px;
+          }}
 
-          .cardhead {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px;}
-          .cardhead .title {font-weight:700;font-size:1rem;color:#e6eaf3;}
-          .cardhead .spacer {flex:1;}
-          .fileref {font-family:ui-monospace,Consolas,monospace;font-size:.76rem;color:#9aa4bd;
-                    background:#0e1422;padding:2px 8px;border-radius:6px;}
+          /* ─── Live pipeline stepper ──────────────────────────────── */
+          .stepper {{ display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0 16px; }}
+          .step {{
+            flex: 1; min-width: 120px;
+            background: {_BG_PANEL_2};
+            border: 1px solid {_BORDER};
+            border-radius: 11px;
+            padding: 12px 13px;
+            transition: all 0.3s ease;
+            position: relative;
+          }}
+          .step .st-ic {{ font-size: 1.15rem; line-height: 1; }}
+          .step .st-name {{
+            font-size: 0.74rem; font-weight: 700;
+            color: {_TEXT_MUTED}; margin-top: 7px;
+            text-transform: uppercase; letter-spacing: 0.5px;
+          }}
+          .step .st-state {{ font-size: 0.68rem; margin-top: 3px; color: {_TEXT_DIM}; font-weight: 600; }}
+          .step.done {{ border-color: rgba(34,197,94,0.30); background: linear-gradient(180deg, rgba(34,197,94,0.06), transparent); }}
+          .step.done .st-name, .step.done .st-state {{ color: #4ade80; }}
+          .step.active {{
+            border-color: rgba(99,102,241,0.45);
+            background: linear-gradient(180deg, rgba(99,102,241,0.10), transparent);
+            box-shadow: 0 0 0 1px rgba(99,102,241,0.20), 0 10px 26px rgba(99,102,241,0.20);
+          }}
+          .step.active .st-name {{ color: #c7d2fe; }}
+          .step.active .st-state {{ color: #a5b4fc; }}
+          .step.pending {{ opacity: 0.55; }}
 
-          .cbar {height:9px;border-radius:999px;background:#232b40;overflow:hidden;}
-          .cbar>div {height:100%;border-radius:999px;}
+          /* ─── Live agent feed ────────────────────────────────────── */
+          .feed-wrap {{
+            display: flex; flex-direction: column; gap: 8px;
+            max-height: 460px; overflow-y: auto;
+            padding: 4px 6px 4px 4px;
+          }}
+          .feed-wrap::-webkit-scrollbar {{ width: 8px; }}
+          .feed-wrap::-webkit-scrollbar-thumb {{ background: #2a3450; border-radius: 8px; }}
+          .feed-card {{
+            display: flex; gap: 11px; align-items: flex-start;
+            background: {_BG_PANEL_2};
+            border: 1px solid {_BORDER};
+            border-left: 3px solid {_PRIMARY};
+            border-radius: 10px;
+            padding: 10px 13px;
+            animation: feedIn 0.26s ease;
+          }}
+          @keyframes feedIn {{
+            from {{ opacity: 0; transform: translateY(-6px); }}
+            to {{ opacity: 1; transform: none; }}
+          }}
+          .feed-ic {{
+            width: 30px; height: 30px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.98rem; flex-shrink: 0;
+          }}
+          .feed-body {{ flex: 1; min-width: 0; }}
+          .feed-top {{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }}
+          .feed-agent {{ font-weight: 700; font-size: 0.82rem; }}
+          .feed-phase {{
+            font-size: 0.62rem; color: {_TEXT_MUTED};
+            background: #0a0f1e; padding: 2px 8px;
+            border-radius: 5px;
+            text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700;
+            border: 1px solid {_BORDER};
+          }}
+          .feed-time {{
+            font-size: 0.68rem; color: {_TEXT_DIM}; margin-left: auto;
+            font-family: {_FONT_MONO};
+          }}
+          .feed-msg {{
+            color: #c3cad9; font-size: 0.84rem; margin-top: 4px; line-height: 1.45;
+            word-break: break-word;
+          }}
 
-          section[data-testid="stSidebar"] {background:linear-gradient(180deg,#0d1220,#0a0f1b);
-            border-right:1px solid #1e2740;}
-          section[data-testid="stSidebar"] .block-container {padding-top:1.2rem;}
-          .stButton>button {border-radius:10px;font-weight:700;min-height:2.65rem;
-            border-color:#2c3650;transition:transform .15s ease,border-color .15s ease;}
-          .stButton>button:hover {transform:translateY(-1px);border-color:#6366f1;}
-          [data-testid="stTextInput"] input {border-radius:10px;background:#101626;border-color:#273149;}
-          [data-baseweb="tab-list"] {gap:6px;background:#101626;padding:5px;border-radius:12px;}
-          [data-baseweb="tab"] {height:38px;border-radius:9px;padding:0 14px;}
-          [data-baseweb="tab-highlight"] {background:#6366f1;border-radius:8px;}
-          div[data-testid="stExpander"] {border:none;}
+          /* ─── Live indicator dot ─────────────────────────────────── */
+          .live-dot {{
+            display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+            background: {_SEM_SUCCESS}; margin-right: 8px;
+            box-shadow: 0 0 9px {_SEM_SUCCESS};
+            animation: livePulse 1.25s ease-in-out infinite;
+            vertical-align: middle;
+          }}
+          @keyframes livePulse {{
+            0%, 100% {{ opacity: 1; transform: scale(1); }}
+            50% {{ opacity: 0.35; transform: scale(0.65); }}
+          }}
 
-          /* ── Live pipeline stepper ── */
-          .stepper {display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 14px;}
-          .step {flex:1;min-width:118px;background:#141a2a;border:1px solid #232b40;
-                 border-radius:13px;padding:12px 14px;transition:all .3s ease;}
-          .step .st-ic {font-size:1.2rem;line-height:1;}
-          .step .st-name {font-size:.73rem;font-weight:800;color:#8b95ad;margin-top:7px;
-                 text-transform:uppercase;letter-spacing:.5px;}
-          .step .st-state {font-size:.68rem;margin-top:3px;color:#6b7280;font-weight:600;}
-          .step.done {border-color:#22c55e55;background:#0f2018;}
-          .step.done .st-name {color:#4ade80;}
-          .step.done .st-state {color:#4ade80;}
-          .step.active {border-color:#6366f1;background:#161a33;
-                 box-shadow:0 0 0 1px #6366f1, 0 10px 26px rgba(99,102,241,.30);}
-          .step.active .st-name {color:#a5b4fc;}
-          .step.active .st-state {color:#a5b4fc;}
-          .step.active .st-ic {animation:bob 1.15s ease-in-out infinite;}
-          .step.pending {opacity:.5;}
-          @keyframes bob {0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+          /* ─── Responsive ─────────────────────────────────────────── */
+          @media (max-width: 1000px) {{
+            .feature-grid {{ grid-template-columns: 1fr; }}
+            .workflow {{ grid-template-columns: 1fr 1fr; }}
+            .wf::after {{ display: none; }}
+            .health-grid {{ grid-template-columns: 1fr 1fr; }}
+            .stepper {{ flex-wrap: wrap; }}
+          }}
 
-          /* ── Live agent feed ── */
-          .feed-wrap {display:flex;flex-direction:column;gap:8px;max-height:450px;
-                 overflow-y:auto;padding:2px 6px 2px 2px;}
-          .feed-wrap::-webkit-scrollbar {width:8px;}
-          .feed-wrap::-webkit-scrollbar-thumb {background:#2a3450;border-radius:8px;}
-          .feed-card {display:flex;gap:11px;align-items:flex-start;background:#141a2a;
-                 border:1px solid #232b40;border-left:3px solid #6366f1;border-radius:11px;
-                 padding:9px 13px;animation:slidein .26s ease;}
-          @keyframes slidein {from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
-          .feed-ic {width:31px;height:31px;border-radius:9px;display:flex;align-items:center;
-                 justify-content:center;font-size:1.02rem;flex-shrink:0;}
-          .feed-body {flex:1;min-width:0;}
-          .feed-top {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-          .feed-agent {font-weight:800;font-size:.82rem;}
-          .feed-phase {font-size:.64rem;color:#9aa4bd;background:#0e1422;padding:1px 8px;
-                 border-radius:6px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;}
-          .feed-time {font-size:.68rem;color:#5b647d;margin-left:auto;
-                 font-family:ui-monospace,Consolas,monospace;}
-          .feed-msg {color:#c3cad9;font-size:.84rem;margin-top:3px;line-height:1.45;
-                 word-break:break-word;}
-          .live-dot {display:inline-block;width:9px;height:9px;border-radius:50%;
-                 background:#22c55e;margin-right:8px;box-shadow:0 0 9px #22c55e;
-                 animation:pulse 1.25s ease-in-out infinite;vertical-align:middle;}
-          @keyframes pulse {0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}
+          /* ─── Divider utility ────────────────────────────────────── */
+          .hr {{ height: 1px; background: {_DIVIDER}; margin: 14px 0; border: 0; }}
         </style>
         """,
         unsafe_allow_html=True,
@@ -343,14 +725,22 @@ def _hero() -> None:
     st.markdown(
         """
         <div class="hero">
-          <div class="hero-kicker">Repository intelligence workspace</div>
-          <h1>Code Impact &amp; Autonomous Repair</h1>
-          <p>Trace Python dependencies, investigate defects across files, generate atomic minimal
-          patches, and publish evidence-backed pull requests from one explainable workflow.</p>
-          <div class="pills">
-            <span>🕸️ Directional impact graph</span><span>🔍 Cross-file investigation</span>
-            <span>🩹 Atomic patches</span><span>✅ Full-suite validation</span>
-            <span>🧠 Scoped repair memory</span>
+          <div class="hero-row">
+            <div class="hero-mark">◈</div>
+            <div class="hero-copy">
+              <div class="hero-kicker">Repository intelligence workspace</div>
+              <h1>Code Impact &amp; Autonomous Repair</h1>
+              <p>Trace Python dependencies, investigate defects across files, generate atomic
+              minimal patches, and publish evidence-backed pull requests from one explainable
+              workflow.</p>
+              <div class="hero-pills">
+                <span>🕸️ Directional impact graph</span>
+                <span>🔍 Cross-file investigation</span>
+                <span>🩹 Atomic patches</span>
+                <span>✅ Full-suite validation</span>
+                <span>🧠 Scoped repair memory</span>
+              </div>
+            </div>
           </div>
         </div>
         """,
@@ -827,9 +1217,10 @@ def _render_pull_requests(job) -> None:
 
             # Confidence bar
             st.markdown(
-                '<div style="display:flex;align-items:center;gap:12px;margin:4px 0 8px;">'
-                f'<div class="cbar" style="flex:1;"><div style="width:{pct:.0f}%;background:{color};"></div></div>'
-                f'<div style="font-weight:800;color:{color};font-size:1.05rem;min-width:44px;text-align:right;">{pct:.0f}%</div>'
+                '<div style="display:flex;align-items:center;gap:12px;margin:6px 0 10px;">'
+                f'<div class="cbar" style="flex:1;"><div style="width:{pct:.0f}%;background:{color};box-shadow:0 0 12px {color}55;"></div></div>'
+                f'<div style="font-weight:750;color:{color};font-size:0.96rem;min-width:44px;text-align:right;'
+                f'font-feature-settings:&quot;tnum&quot; 1;">{pct:.0f}%</div>'
                 '</div>',
                 unsafe_allow_html=True,
             )
@@ -1298,18 +1689,16 @@ def main() -> None:
     # ----- Sidebar: configuration -----
     with st.sidebar:
         st.markdown(
-            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:3px;">'
-            '<div style="width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,'
-            '#6366f1,#9333ea);display:flex;align-items:center;justify-content:center;box-shadow:'
-            '0 8px 20px #6366f133;">◈</div><div>'
-            '<div style="font-weight:850;font-size:1.05rem;line-height:1.1;color:#eef2ff;">Code Impact</div>'
-            '<div style="color:#707b94;font-size:.68rem;margin-top:3px;letter-spacing:.4px;">REPAIR WORKSPACE</div>'
+            '<div class="sb-brand">'
+            '<div class="mark">◈</div><div>'
+            '<div class="b-title">Code Impact</div>'
+            '<div class="b-sub">Repair workspace</div>'
             '</div></div>',
             unsafe_allow_html=True,
         )
-        st.divider()
+        st.markdown('<hr class="hr">', unsafe_allow_html=True)
 
-        st.markdown("**Analysis target**")
+        st.markdown('<div class="sb-section-label">Analysis target</div>', unsafe_allow_html=True)
         repo_url = st.text_input(
             "GitHub repository",
             placeholder="https://github.com/owner/repository",
@@ -1354,7 +1743,7 @@ def main() -> None:
         st.divider()
         has_workspace = "repo_map" in st.session_state or "last_job" in st.session_state
         if has_workspace:
-            st.markdown("**Current workspace**")
+            st.markdown('<div class="sb-section-label">Current workspace</div>', unsafe_allow_html=True)
             if "last_job" in st.session_state:
                 latest = st.session_state["last_job"]
                 st.caption(
@@ -1445,7 +1834,8 @@ def main() -> None:
         stepper_box = st.empty()
         metrics_box = st.empty()
         st.markdown(
-            '<div style="font-weight:800;font-size:.98rem;margin:12px 0 4px;">'
+            '<div style="font-weight:700;font-size:.94rem;margin:14px 0 6px;color:#c7d2fe;'
+            'letter-spacing:-.1px;display:flex;align-items:center;">'
             '<span class="live-dot"></span>Live Agent Feed</div>',
             unsafe_allow_html=True,
         )
