@@ -104,18 +104,18 @@ st.set_page_config(
 _DONE = object()
 
 ISSUE_CLASS_LABEL = {
-    "functional_bug": "🐛 Functional Bug",
-    "security_vulnerability": "🔒 Security",
-    "code_quality": "🧹 Code Quality",
-    "performance": "⚡ Performance",
+    "functional_bug": "Functional Bug",
+    "security_vulnerability": "Security",
+    "code_quality": "Code Quality",
+    "performance": "Performance",
 }
 
 SEVERITY_EMOJI = {
-    "critical": "🔴",
-    "high": "🟠",
-    "medium": "🟡",
-    "low": "🔵",
-    "info": "⚪",
+    "critical": "",
+    "high": "",
+    "medium": "",
+    "low": "",
+    "info": "",
 }
 
 SEVERITY_COLOR = {
@@ -734,11 +734,11 @@ def _hero() -> None:
               minimal patches, and publish evidence-backed pull requests from one explainable
               workflow.</p>
               <div class="hero-pills">
-                <span>🕸️ Directional impact graph</span>
-                <span>🔍 Cross-file investigation</span>
-                <span>🩹 Atomic patches</span>
-                <span>✅ Full-suite validation</span>
-                <span>🧠 Scoped repair memory</span>
+                <span>Directional impact graph</span>
+                <span>Cross-file investigation</span>
+                <span>Atomic patches</span>
+                <span>Full-suite validation</span>
+                <span>Scoped repair memory</span>
               </div>
             </div>
           </div>
@@ -842,15 +842,15 @@ def _render_setup_guide() -> None:
     st.markdown(
         """
         <div class="feature-grid">
-          <div class="feature"><div class="f-icon">🕸️</div>
+          <div class="feature"><div class="f-icon">01</div>
             <div class="f-title">Explainable impact graph</div>
             <div class="f-copy">Maps imports, functions, methods, calls, consumers and tests, then
             records the exact dependency path behind every affected file.</div></div>
-          <div class="feature"><div class="f-icon">🩹</div>
+          <div class="feature"><div class="f-icon">02</div>
             <div class="f-title">Atomic cross-file repair</div>
             <div class="f-copy">Uses anchored edits inside graph-selected files. If one edit is
             missing or ambiguous, the complete patch is rejected and retried.</div></div>
-          <div class="feature"><div class="f-icon">🧠</div>
+          <div class="feature"><div class="f-icon">03</div>
             <div class="f-title">Validated repair memory</div>
             <div class="f-copy">Stores only successful fixes with repository scope, stable IDs,
             validation evidence and semantic retrieval for future investigations.</div></div>
@@ -877,21 +877,21 @@ def _render_setup_guide() -> None:
 # --------------------------------------------------------------------------- #
 # Live run visuals (phase stepper, running metrics, rich agent feed)
 # --------------------------------------------------------------------------- #
-# Per-agent identity: (icon, accent colour) keyed by the agent's ``.name``.
+# Per-agent identity: (short label, accent colour) keyed by the agent's ``.name``.
 AGENT_STYLE = {
-    "Orchestrator":          ("🧠", "#8b5cf6"),
-    "Repo Mapper":           ("🗺️", "#3b82f6"),
-    "Dependency Analyzer":   ("📦", "#f59e0b"),
-    "Static Analysis":       ("🔬", "#14b8a6"),
-    "Bug Hunter":            ("🔍", "#ef4444"),
-    "Bug Investigation":     ("🧭", "#a855f7"),
-    "Repair Planner":        ("📝", "#06b6d4"),
-    "Code Generation":       ("🩹", "#22c55e"),
-    "Validation Agent":      ("✅", "#10b981"),
-    "Security Verification": ("🔐", "#f43f5e"),
-    "PR Author":             ("🚀", "#6366f1"),
+    "Orchestrator":          ("OR", "#8b5cf6"),
+    "Repo Mapper":           ("RM", "#3b82f6"),
+    "Dependency Analyzer":   ("DA", "#f59e0b"),
+    "Static Analysis":       ("SA", "#14b8a6"),
+    "Bug Hunter":            ("BH", "#ef4444"),
+    "Bug Investigation":     ("BI", "#a855f7"),
+    "Repair Planner":        ("RP", "#06b6d4"),
+    "Code Generation":       ("CG", "#22c55e"),
+    "Validation Agent":      ("VA", "#10b981"),
+    "Security Verification": ("SV", "#f43f5e"),
+    "PR Author":             ("PR", "#6366f1"),
 }
-_DEFAULT_AGENT_STYLE = ("🤖", "#6b7280")
+_DEFAULT_AGENT_STYLE = ("AI", "#6b7280")
 
 # Left-border accent per event type (falls back to the agent colour).
 EVENT_ACCENT = {
@@ -910,12 +910,12 @@ EVENT_ACCENT = {
 
 # The pipeline phases, in order, for the live stepper. Keys are JobStatus values.
 STEP_PHASES = [
-    ("cloning",                 "Clone",          "📥"),
-    ("phase_1_discovery",       "Discovery",      "🔍"),
-    ("phase_2_investigation",   "Investigation",  "🧭"),
-    ("phase_3_planning",        "Planning",       "📝"),
-    ("phase_4_fix_validate",    "Fix & Validate", "🩹"),
-    ("phase_5_publication",     "Publication",    "🚀"),
+    ("cloning",                 "Clone",          "01"),
+    ("phase_1_discovery",       "Discovery",      "02"),
+    ("phase_2_investigation",   "Investigation",  "03"),
+    ("phase_3_planning",        "Planning",       "04"),
+    ("phase_4_fix_validate",    "Fix & Validate", "05"),
+    ("phase_5_publication",     "Publication",    "06"),
 ]
 _STEP_INDEX = {key: i for i, (key, _, _) in enumerate(STEP_PHASES)}
 
@@ -926,7 +926,7 @@ def _stepper_html(active_idx: int) -> str:
     out = ['<div class="stepper">']
     for i, (_key, name, icon) in enumerate(STEP_PHASES):
         if i < active_idx:
-            cls, state, ic = "done", "done", "✅"
+            cls, state, ic = "done", "done", "OK"
         elif i == active_idx:
             cls, state, ic = "active", "running…", icon
         else:
@@ -1058,7 +1058,7 @@ def _finding_head(f, show_source: bool = True) -> str:
 def _render_findings(findings, empty_msg: str, show_blast: bool = True,
                      compact: bool = False) -> None:
     if not findings:
-        _empty_state("✨", "Nothing to show", empty_msg)
+        _empty_state("—", "Nothing to show", empty_msg)
         return
 
     findings = sorted(findings, key=lambda f: f.severity_rank, reverse=True)
@@ -1083,15 +1083,15 @@ def _render_findings(findings, empty_msg: str, show_blast: bool = True,
                 st.markdown(f.description)
             bits = []
             if f.evidence:
-                bits.append(f"**🔎 Evidence** — {f.evidence}")
+                bits.append(f"**Evidence** — {f.evidence}")
             if f.root_cause:
-                bits.append(f"**🧭 Root cause** — {f.root_cause}")
+                bits.append(f"**Root cause** — {f.root_cause}")
             if f.suggested_fix:
-                bits.append(f"**🩹 Suggested fix** — {f.suggested_fix}")
+                bits.append(f"**Suggested fix** — {f.suggested_fix}")
             if show_blast and f.blast_radius:
                 extra = f" across {', '.join(f.affected_modules)}" if f.affected_modules else ""
                 bits.append(
-                    f"**💥 Directional impact** — {f.blast_radius} dependent file(s){extra} "
+                    f"**Directional impact** — {f.blast_radius} dependent file(s){extra} "
                     f"(graph confidence: {f.impact_confidence})"
                 )
             if f.direct_dependents:
@@ -1099,7 +1099,7 @@ def _render_findings(findings, empty_msg: str, show_blast: bool = True,
             if f.related_tests:
                 bits.append(f"**Related tests** — {', '.join(f.related_tests[:6])}")
             if f.similar_past_fixes:
-                bits.append(f"**🧠 Memory** — {len(f.similar_past_fixes)} similar past fix(es)")
+                bits.append(f"**Memory** — {len(f.similar_past_fixes)} similar past fix(es)")
             if bits:
                 st.markdown("\n\n".join(bits))
             if f.code_snippet:
@@ -1168,7 +1168,7 @@ def _render_findings_explorer(
 def _render_repair_plan(job) -> None:
     plan = job.repair_plan
     if not plan or not plan.items:
-        _empty_state("🗺️", "No repair plan", "A repair plan appears after fixable findings are investigated.")
+        _empty_state("—", "No repair plan", "A repair plan appears after fixable findings are investigated.")
         return
 
     st.caption("Fixes are grouped by file and ordered by dependency (security first).")
@@ -1196,7 +1196,7 @@ def _render_pull_requests(job) -> None:
     prs = job.pull_requests
     if not prs:
         _empty_state(
-            "🚀", "No pull requests prepared",
+            "—", "No pull requests prepared",
             "Validated atomic patches will appear here with confidence and approval evidence.",
         )
         return
@@ -1207,9 +1207,9 @@ def _render_pull_requests(job) -> None:
         color = "#22c55e" if pct >= 70 else "#f59e0b" if pct >= 40 else "#ef4444"
 
         with st.container(border=True):
-            head = f'<div class="cardhead"><span class="title">🚀 {_esc(pr.title)}</span><span class="spacer"></span>'
+            head = f'<div class="cardhead"><span class="title">{_esc(pr.title)}</span><span class="spacer"></span>'
             if score.is_critical_path:
-                head += _pill("⚠ CRITICAL PATH", "#ef4444", filled=True)
+                head += _pill("CRITICAL PATH", "#ef4444", filled=True)
             head += _pill("DRAFT · needs approval" if pr.requires_approval else "READY TO MERGE",
                           "#f59e0b" if pr.requires_approval else "#22c55e")
             head += "</div>"
@@ -1243,7 +1243,7 @@ def _render_pull_requests(job) -> None:
                 f"+{additions} / -{deletions} lines"
             )
             if pr.root_cause_explanation:
-                st.markdown(f"**🧭 Root cause** — {pr.root_cause_explanation}")
+                st.markdown(f"**Root cause** — {pr.root_cause_explanation}")
 
             # Confidence signals as inline chips
             sig = [
@@ -1265,7 +1265,7 @@ def _render_pull_requests(job) -> None:
             st.markdown(chips, unsafe_allow_html=True)
 
             if pr.github_pr_url:
-                st.markdown(f"🔗 **[Open pull request on GitHub]({pr.github_pr_url})**")
+                st.markdown(f"**[Open pull request on GitHub]({pr.github_pr_url})**")
             else:
                 st.caption("No GitHub PR opened (no GITHUB_TOKEN configured, or dry run).")
 
@@ -1373,7 +1373,7 @@ def _render_overview(job) -> None:
 def _render_activity(job) -> None:
     events = list(job.events)
     if not events:
-        _empty_state("📡", "No activity recorded", "Pipeline events will appear here after a run.")
+        _empty_state("—", "No activity recorded", "Pipeline events will appear here after a run.")
         return
     filters = sorted({event.agent_name or "Orchestrator" for event in events})
     selected = st.multiselect(
@@ -1393,12 +1393,12 @@ def _render_results(job) -> None:
     report_only = getattr(job, "report_only_findings", [])
     unresolved = getattr(job, "unresolved_findings", [])
     tab_overview, tab_pr, tab_fix, tab_report, tab_plan, tab_activity = st.tabs(
-        ["◈ Overview",
-         f"🚀 Pull Requests ({len(job.pull_requests)})",
-         f"🐞 Fixable Bugs ({len(job.findings)})",
-         f"📋 Report-only ({len(report_only)})",
-         "🗺️ Repair Plan",
-         f"📡 Activity ({len(job.events)})"]
+        ["Overview",
+         f"Pull Requests ({len(job.pull_requests)})",
+         f"Fixable Bugs ({len(job.findings)})",
+         f"Report-only ({len(report_only)})",
+         "Repair Plan",
+         f"Activity ({len(job.events)})"]
     )
     with tab_overview:
         _render_overview(job)
@@ -1406,7 +1406,7 @@ def _render_results(job) -> None:
         _render_pull_requests(job)
         if unresolved:
             st.divider()
-            st.markdown(f"#### ⚠️ Unresolved ({len(unresolved)})")
+            st.markdown(f"#### Unresolved ({len(unresolved)})")
             st.caption("Fixable issues where no validated patch could be produced after retries.")
             _render_findings(unresolved, "None.", show_blast=False, compact=True)
     with tab_fix:
@@ -1707,11 +1707,11 @@ def main() -> None:
         branch = st.text_input("Base branch", value="main", key="target_branch")
         if repo_url:
             if _is_github_repo_url(repo_url):
-                st.caption("✓ Repository URL looks valid")
+                st.caption("Repository URL looks valid")
             else:
-                st.caption("⚠ Use a full https://github.com/owner/repo URL")
+                st.caption("Use a full https://github.com/owner/repo URL")
 
-        with st.expander("🔐 Connections", expanded=True):
+        with st.expander("Connections", expanded=True):
             api_key = st.text_input(
                 "Anthropic API Key",
                 type="password",
@@ -1830,7 +1830,7 @@ def main() -> None:
             "Live execution", "Agent pipeline",
             f"Analyzing {repo_url.rstrip('/').split('/')[-1]} on branch {branch}.",
         )
-        run_status = st.status("🚀 Starting pipeline…", expanded=False)
+        run_status = st.status("Starting pipeline…", expanded=False)
         stepper_box = st.empty()
         metrics_box = st.empty()
         st.markdown(
@@ -1886,14 +1886,14 @@ def main() -> None:
                 unsafe_allow_html=True,
             )
             run_status.update(
-                label=f"⚙️ {item.agent_name or 'Orchestrator'} · {job.status.value.replace('_', ' ')}"
+                label=f"{item.agent_name or 'Orchestrator'} · {job.status.value.replace('_', ' ')}"
             )
 
         elapsed = time.monotonic() - start_t
         if error_payload is not None:
-            run_status.update(label=f"❌ Pipeline failed after {int(elapsed)}s", state="error")
+            run_status.update(label=f"Pipeline failed after {int(elapsed)}s", state="error")
         else:
-            run_status.update(label=f"✅ Pipeline complete in {int(elapsed)}s", state="complete")
+            run_status.update(label=f"Pipeline complete in {int(elapsed)}s", state="complete")
             stepper_box.markdown(_stepper_html(len(STEP_PHASES)), unsafe_allow_html=True)
         metrics_box.markdown(
             _live_metrics_html(elapsed, len(card_htmls), len(job.findings), len(job.pull_requests)),
